@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Solace</string>
+
+    <string name="tab_library">图库</string>
+    <string name="tab_gallery">画廊</string>
+    <string name="tab_profile">我</string>
+
+    <string name="library_placeholder">导入的视频会出现在这里</string>
+    <string name="gallery_placeholder">这里将展示竖滑视频画廊</string>
+    <string name="profile_placeholder">个人中心与设置</string>
 </resources>
