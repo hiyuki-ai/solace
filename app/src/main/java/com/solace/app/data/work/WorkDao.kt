@@ -24,17 +24,29 @@ abstract class WorkDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertMedia(items: List<WorkMediaEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertOrigin(origin: WorkOriginEntity)
+
     @Query("DELETE FROM work_media WHERE workId = :workId")
     abstract suspend fun deleteMediaFor(workId: String)
+
+    @Query("DELETE FROM work_origins WHERE workId = :workId")
+    abstract suspend fun deleteOrigin(workId: String)
 
     @Query("DELETE FROM works WHERE id = :workId")
     abstract suspend fun deleteWork(workId: String)
 
     @Transaction
-    open suspend fun save(work: WorkEntity, media: List<WorkMediaEntity>) {
+    open suspend fun save(
+        work: WorkEntity,
+        media: List<WorkMediaEntity>,
+        origin: WorkOriginEntity?,
+    ) {
         insertWork(work)
         deleteMediaFor(work.id)
         insertMedia(media)
+        deleteOrigin(work.id)
+        if (origin != null) insertOrigin(origin)
     }
 
     @Transaction

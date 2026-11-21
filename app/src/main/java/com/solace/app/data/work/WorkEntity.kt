@@ -58,10 +58,46 @@ data class WorkMediaEntity(
     val sizeBytes: Long,
 )
 
+/**
+ * 复制作品的来源信息，和作品是 1:1 关系。
+ *
+ * 单独建表而不是往 works 上加一串可空列：来源本身是可选的，
+ * 本地原创作品没有这一行，查询 / 级联删除仍然由 Room 负责。
+ */
+@Entity(
+    tableName = "work_origins",
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["workId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class WorkOriginEntity(
+    @PrimaryKey val workId: String,
+    /** 来源平台，目前只有 douyin。 */
+    val platform: String,
+    val authorName: String?,
+    /** 抖音号；作者没设置时是 short_id。 */
+    val authorId: String?,
+    val authorSecUid: String?,
+    val awemeId: String?,
+    /** 抖音侧的发布时间（毫秒时间戳）。 */
+    val publishedAt: Long?,
+)
+
+object OriginPlatform {
+    const val DOUYIN = "douyin"
+}
+
 data class WorkWithMedia(
     @Embedded val work: WorkEntity,
     @Relation(parentColumn = "id", entityColumn = "workId")
     val media: List<WorkMediaEntity>,
+    @Relation(parentColumn = "id", entityColumn = "workId")
+    val origin: WorkOriginEntity? = null,
 ) {
     val coverRelativePath: String? get() = work.coverFile ?: media.firstOrNull()?.fileName
 }

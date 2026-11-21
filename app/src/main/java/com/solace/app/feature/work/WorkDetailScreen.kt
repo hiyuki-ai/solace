@@ -71,9 +71,13 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import com.solace.app.R
 import com.solace.app.data.work.MediaKind
+import com.solace.app.data.work.OriginPlatform
 import com.solace.app.data.work.WorkRepository
 import com.solace.app.data.work.WorkWithMedia
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -397,9 +401,31 @@ private fun WorkFeedPage(
                         1f to Color.Black.copy(alpha = 0.78f),
                     ),
                 )
-                .padding(start = 16.dp, end = 16.dp, top = 32.dp, bottom = 4.dp),
+                // 左右不留边，让下面的进度条占满整个屏幕宽度；文案自己补 16dp。
+                .padding(top = 32.dp, bottom = 4.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            val origin = work.origin
+            if (origin != null &&
+                origin.platform == OriginPlatform.DOUYIN &&
+                !origin.authorName.isNullOrBlank()
+            ) {
+                val name = origin.authorName.orEmpty()
+                Text(
+                    text = if (origin.publishedAt != null) {
+                        stringResource(
+                            R.string.work_origin_douyin_time,
+                            name,
+                            formatOriginDate(origin.publishedAt),
+                        )
+                    } else {
+                        stringResource(R.string.work_origin_douyin, name)
+                    },
+                    color = Color.White.copy(alpha = 0.65f),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
             if (work.work.caption.isNotBlank()) {
                 Text(
                     text = work.work.caption,
@@ -413,6 +439,7 @@ private fun WorkFeedPage(
                     ),
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
             WorkProgressBar(
@@ -580,6 +607,10 @@ private fun formatProgressTime(millis: Long): String {
     val minutes = seconds / 60
     return "$minutes:${(seconds % 60).toString().padStart(2, '0')}"
 }
+
+/** 来源作品只展示日期，避免信息过密。 */
+private fun formatOriginDate(millis: Long): String =
+    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(millis))
 
 /**
  * 分段进度条：按素材数量分格，每格展示该素材的播放进度。

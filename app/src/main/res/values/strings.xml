@@ -33,10 +33,32 @@
     <string name="creation_error_item_limit">一次最多选择 %1$d 个素材</string>
 
     <string name="profile_start_creation">开始创作</string>
+    <string name="profile_copy_work">复制作品</string>
     <string name="profile_drafts">草稿箱</string>
     <string name="profile_works">我的作品</string>
     <string name="profile_empty_drafts">还没有草稿</string>
     <string name="profile_empty_works">还没有发布的作品</string>
+    <string name="profile_delete_title">删除作品</string>
+    <string name="profile_delete_message">确定删除「%1$s」吗？本地文件会一并删除，且不可恢复。</string>
+
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+
+    <string name="douyin_dialog_title">复制抖音作品</string>
+    <string name="douyin_dialog_hint">粘贴抖音分享链接</string>
+    <string name="douyin_dialog_helper">整段分享文案也可以。解析后可修改文案、删除不需要的素材。</string>
+    <string name="douyin_dialog_parse">解析</string>
+
+    <string name="douyin_import_title">复制作品</string>
+    <string name="douyin_import_unknown_author">抖音作者</string>
+    <string name="douyin_import_author_id">抖音号：%1$s</string>
+    <string name="douyin_import_published_at">发布于 %1$s</string>
+    <string name="douyin_import_media_title">素材（%1$d）</string>
+    <string name="douyin_import_saving">正在下载 %1$d/%2$d</string>
+    <string name="douyin_import_expired">解析结果已失效，请返回重新复制</string>
+
+    <string name="work_origin_douyin">来源：抖音 @%1$s</string>
+    <string name="work_origin_douyin_time">来源：抖音 @%1$s · %2$s</string>
 
     <string name="work_draft_badge">草稿</string>
     <string name="work_untitled">无描述</string>

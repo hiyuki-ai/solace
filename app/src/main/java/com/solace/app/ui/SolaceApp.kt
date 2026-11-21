@@ -41,6 +41,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.solace.app.feature.creation.CreationScreen
+import com.solace.app.feature.douyin.DouyinImportHandoff
+import com.solace.app.feature.douyin.DouyinImportScreen
 import com.solace.app.feature.gallery.GalleryScreen
 import com.solace.app.feature.profile.ProfileScreen
 import com.solace.app.feature.work.WorkDetailScreen
@@ -53,6 +55,7 @@ private const val ROUTE_FOLDER = "folder/{bucketId}"
 private const val ROUTE_PLAYER = "player/{bucketId}/{videoId}"
 private const val ROUTE_CREATION = "creation?draftId={draftId}"
 private const val ROUTE_WORK = "work/{workId}"
+private const val ROUTE_DOUYIN_IMPORT = "douyin-import"
 
 private const val ARG_BUCKET_ID = "bucketId"
 private const val ARG_VIDEO_ID = "videoId"
@@ -143,6 +146,10 @@ fun SolaceApp() {
                         navController.navigate("creation?draftId=$workId")
                     },
                     onOpenWork = { workId -> navController.navigate("work/$workId") },
+                    onDouyinParsed = { work ->
+                        DouyinImportHandoff.put(work)
+                        navController.navigate(ROUTE_DOUYIN_IMPORT)
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -185,6 +192,12 @@ fun SolaceApp() {
             ) { entry ->
                 CreationScreen(
                     draftId = entry.arguments?.getString(ARG_DRAFT_ID),
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(ROUTE_DOUYIN_IMPORT) {
+                DouyinImportScreen(
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
                 )

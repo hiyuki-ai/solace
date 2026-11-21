@@ -18,6 +18,10 @@ class WorkRepository(context: Context) {
 
     suspend fun get(workId: String): WorkWithMedia? = dao.getById(workId)
 
+    /**
+     * 保存作品。 [origin] 为 null 时沿用已有的来源信息，避免编辑草稿时把它清掉；
+     * 本地原创作品本来就没有来源行。
+     */
     suspend fun save(
         workId: String,
         caption: String,
@@ -25,13 +29,15 @@ class WorkRepository(context: Context) {
         media: List<WorkMediaEntity>,
         coverFile: String?,
         commitStaging: Boolean,
+        origin: WorkOriginEntity? = null,
     ) {
         withContext(Dispatchers.IO) {
             if (commitStaging) {
                 storage.commitStaging(workId)
             }
             val now = System.currentTimeMillis()
-            val existing = dao.getById(workId)?.work
+            val current = dao.getById(workId)
+            val existing = current?.work
             dao.save(
                 WorkEntity(
                     id = workId,
@@ -47,6 +53,7 @@ class WorkRepository(context: Context) {
                     },
                 ),
                 media,
+                origin ?: current?.origin,
             )
         }
     }

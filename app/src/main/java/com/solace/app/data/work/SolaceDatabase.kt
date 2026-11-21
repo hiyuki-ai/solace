@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WorkEntity::class, WorkMediaEntity::class],
-    version = 2,
+    entities = [WorkEntity::class, WorkMediaEntity::class, WorkOriginEntity::class],
+    version = 3,
     exportSchema = true,
 )
 abstract class SolaceDatabase : RoomDatabase() {
@@ -77,6 +77,28 @@ abstract class SolaceDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 → v3：新增 work_origins，保存复制作品的来源信息。
+         * 本地原创作品没有对应的行，因此不需要回填。
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `work_origins` (" +
+                        "`workId` TEXT NOT NULL, " +
+                        "`platform` TEXT NOT NULL, " +
+                        "`authorName` TEXT, " +
+                        "`authorId` TEXT, " +
+                        "`authorSecUid` TEXT, " +
+                        "`awemeId` TEXT, " +
+                        "`publishedAt` INTEGER, " +
+                        "PRIMARY KEY(`workId`), " +
+                        "FOREIGN KEY(`workId`) REFERENCES `works`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+            }
+        }
+
         @Volatile
         private var instance: SolaceDatabase? = null
 
@@ -87,7 +109,7 @@ abstract class SolaceDatabase : RoomDatabase() {
                     SolaceDatabase::class.java,
                     NAME,
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

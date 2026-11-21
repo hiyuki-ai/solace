@@ -52,6 +52,8 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
+    // Coil 3 的 HTTP 加载能力拆在独立模块里，抖音封面 / 头像预览需要它。
+    implementation(libs.coil.network.okhttp)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
