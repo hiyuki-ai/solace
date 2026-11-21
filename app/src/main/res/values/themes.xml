@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Solace" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Solace" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 系统栏透明，让全屏作品页的黑底能铺到屏幕最底部。 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

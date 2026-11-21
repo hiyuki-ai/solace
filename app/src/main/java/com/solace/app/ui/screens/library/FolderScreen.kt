@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ fun FolderScreen(
     bucketId: Long,
     onBack: () -> Unit,
     onOpenVideo: (Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as SolaceApplication
@@ -59,6 +61,9 @@ fun FolderScreen(
     }
 
     Scaffold(
+        modifier = modifier,
+        // 底部导航栏的高度由外层 Scaffold 让出，这里不再重复叠加系统栏高度。
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(text = folder?.name.orEmpty()) },

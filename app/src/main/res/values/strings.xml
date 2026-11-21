@@ -6,10 +6,6 @@
     <string name="tab_gallery">画廊</string>
     <string name="tab_profile">我</string>
 
-    <string name="library_placeholder">导入的视频会出现在这里</string>
-    <string name="gallery_placeholder">这里将展示竖滑视频画廊</string>
-    <string name="profile_placeholder">个人中心与设置</string>
-
     <string name="library_permission_title">访问本机视频</string>
     <string name="library_permission_desc">需要读取媒体权限，才能展示本机视频</string>
     <string name="library_permission_grant">去授权</string>
@@ -22,4 +18,27 @@
     <string name="player_pause">暂停</string>
     <string name="player_previous">上一个</string>
     <string name="player_next">下一个</string>
+
+    <string name="creation_new">新建作品</string>
+    <string name="creation_edit_draft">编辑草稿</string>
+    <string name="creation_pick_media">选择素材</string>
+    <string name="creation_repick_media">重新选择素材</string>
+    <string name="creation_cover">封面</string>
+    <string name="creation_change_cover">更换封面</string>
+    <string name="creation_caption_hint">添加描述</string>
+    <string name="creation_save_draft">存草稿</string>
+    <string name="creation_publish">发布</string>
+    <string name="creation_error_no_media">请先选择图片或视频</string>
+    <string name="creation_error_video_limit">视频最多选择 %1$d 个</string>
+    <string name="creation_error_item_limit">一次最多选择 %1$d 个素材</string>
+
+    <string name="profile_start_creation">开始创作</string>
+    <string name="profile_drafts">草稿箱</string>
+    <string name="profile_works">我的作品</string>
+    <string name="profile_empty_drafts">还没有草稿</string>
+    <string name="profile_empty_works">还没有发布的作品</string>
+
+    <string name="work_draft_badge">草稿</string>
+    <string name="work_untitled">无描述</string>
+    <string name="gallery_empty">还没有发布的作品</string>
 </resources>
