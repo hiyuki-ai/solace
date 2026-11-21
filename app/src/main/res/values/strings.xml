@@ -9,4 +9,17 @@
     <string name="library_placeholder">导入的视频会出现在这里</string>
     <string name="gallery_placeholder">这里将展示竖滑视频画廊</string>
     <string name="profile_placeholder">个人中心与设置</string>
+
+    <string name="library_permission_title">访问本机视频</string>
+    <string name="library_permission_desc">需要读取媒体权限，才能展示本机视频</string>
+    <string name="library_permission_grant">去授权</string>
+    <string name="library_empty">本机还没有视频</string>
+    <string name="library_folder_count">%1$d 个视频</string>
+    <string name="action_back">返回</string>
+
+    <string name="player_untitled">未命名视频</string>
+    <string name="player_play">播放</string>
+    <string name="player_pause">暂停</string>
+    <string name="player_previous">上一个</string>
+    <string name="player_next">下一个</string>
 </resources>

@@ -9,6 +9,11 @@
 - `.tmp/` 不入版本库，不进提交。
 - 需要长期保留的素材放 `docs/`，且不得混入临时/调试内容。
 
+## Git
+
+- 未经明确许可，禁止执行 `git commit` 与 `git push`。
+- 需要提交或推送时，先说明将要提交的内容并征得同意，再执行。
+
 ## 构建与运行
 
 - 构建 Debug APK：`./gradlew :app:assembleDebug`
