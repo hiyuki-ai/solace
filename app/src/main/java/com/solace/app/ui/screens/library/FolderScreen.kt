@@ -24,10 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,8 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.solace.app.R
-import com.solace.app.data.MediaStoreVideoRepository
-import com.solace.app.data.VideoFolder
+import com.solace.app.SolaceApplication
 import com.solace.app.data.VideoItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,13 +47,15 @@ fun FolderScreen(
     onOpenVideo: (Long) -> Unit,
 ) {
     val context = LocalContext.current
-    val repository = remember(context) {
-        MediaStoreVideoRepository(context.applicationContext)
-    }
-    var folder by remember { mutableStateOf<VideoFolder?>(null) }
+    val app = context.applicationContext as SolaceApplication
+    val folders by app.mediaLibrary.folders.collectAsState()
 
-    LaunchedEffect(bucketId) {
-        folder = repository.loadFolders().firstOrNull { it.bucketId == bucketId }
+    val folder = remember(folders, bucketId) {
+        folders.firstOrNull { it.bucketId == bucketId }
+    }
+
+    LaunchedEffect(Unit) {
+        app.mediaLibrary.refreshIfEmpty()
     }
 
     Scaffold(

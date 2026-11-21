@@ -31,9 +31,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,8 +56,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.solace.app.R
-import com.solace.app.data.MediaStoreVideoRepository
-import com.solace.app.data.VideoItem
+import com.solace.app.SolaceApplication
 import kotlinx.coroutines.delay
 
 private val SPEED_OPTIONS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
@@ -69,23 +68,21 @@ fun PlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val repository = remember(context) {
-        MediaStoreVideoRepository(context.applicationContext)
+    val app = context.applicationContext as SolaceApplication
+    val folders by app.mediaLibrary.folders.collectAsState()
+
+    LaunchedEffect(Unit) {
+        app.mediaLibrary.refreshIfEmpty()
     }
 
-    var videos by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
-    var index by remember { mutableIntStateOf(-1) }
-
-    LaunchedEffect(bucketId, videoId) {
-        val list = repository.loadFolders()
-            .firstOrNull { it.bucketId == bucketId }
-            ?.videos
-            .orEmpty()
-        videos = list
-        index = list.indexOfFirst { it.id == videoId }.coerceAtLeast(0)
+    val videos = remember(folders, bucketId) {
+        folders.firstOrNull { it.bucketId == bucketId }?.videos.orEmpty()
     }
 
-    val current = videos.getOrNull(index)
+    var currentVideoId by remember { mutableLongStateOf(videoId) }
+    val index = videos.indexOfFirst { it.id == currentVideoId }
+    val current = if (index >= 0) videos[index] else null
+
     val player = remember { ExoPlayer.Builder(context).build() }
 
     var position by remember { mutableLongStateOf(0L) }
@@ -96,6 +93,8 @@ fun PlayerScreen(
 
     LaunchedEffect(current?.uri) {
         val item = current ?: return@LaunchedEffect
+        position = 0
+        duration = 0
         player.setMediaItem(MediaItem.fromUri(item.uri))
         player.prepare()
         player.playWhenReady = true
@@ -115,7 +114,7 @@ fun PlayerScreen(
     }
 
     val hasPrevious = index > 0
-    val hasNext = index in 0 until videos.lastIndex
+    val hasNext = index >= 0 && index < videos.lastIndex
 
     Box(
         modifier = Modifier
@@ -201,7 +200,9 @@ fun PlayerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
-                        onClick = { if (hasPrevious) index -= 1 },
+                        onClick = {
+                            if (hasPrevious) currentVideoId = videos[index - 1].id
+                        },
                         enabled = hasPrevious,
                     ) {
                         Icon(
@@ -241,7 +242,9 @@ fun PlayerScreen(
                     }
 
                     IconButton(
-                        onClick = { if (hasNext) index += 1 },
+                        onClick = {
+                            if (hasNext) currentVideoId = videos[index + 1].id
+                        },
                         enabled = hasNext,
                     ) {
                         Icon(

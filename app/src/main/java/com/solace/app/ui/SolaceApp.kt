@@ -1,5 +1,7 @@
 package com.solace.app.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -83,6 +85,11 @@ fun SolaceApp() {
             navController = navController,
             startDestination = SolaceDestination.Library.route,
             modifier = Modifier.fillMaxSize(),
+            // 页面切换不做转场动画，避免新旧页面同时组合带来的掉帧。
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
         ) {
             composable(SolaceDestination.Library.route) {
                 LibraryScreen(

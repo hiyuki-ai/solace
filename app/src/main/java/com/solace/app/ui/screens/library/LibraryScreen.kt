@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.solace.app.R
-import com.solace.app.data.MediaStoreVideoRepository
+import com.solace.app.SolaceApplication
 import com.solace.app.data.VideoFolder
 import com.solace.app.permission.MediaPermission
 
@@ -46,11 +47,10 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val repository = remember(context) {
-        MediaStoreVideoRepository(context.applicationContext)
-    }
+    val app = context.applicationContext as SolaceApplication
+    val folders by app.mediaLibrary.folders.collectAsState()
+
     var hasPermission by remember { mutableStateOf(MediaPermission.isGranted(context)) }
-    var folders by remember { mutableStateOf<List<VideoFolder>>(emptyList()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -60,7 +60,7 @@ fun LibraryScreen(
 
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
-            folders = repository.loadFolders()
+            app.mediaLibrary.refreshIfEmpty()
         }
     }
 
