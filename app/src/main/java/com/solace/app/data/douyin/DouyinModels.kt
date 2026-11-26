@@ -29,6 +29,13 @@ data class DouyinMedia(
     val durationMs: Long?,
 )
 
+/** 图文作品的背景音乐；视频作品的音轨已经包含在 MP4 里。 */
+data class DouyinAudio(
+    val url: String,
+    val title: String?,
+    val durationMs: Long?,
+)
+
 /**
  * 解析结果：文案、作者、发布时间和素材直链。
  *
@@ -43,4 +50,5 @@ data class DouyinWork(
     val publishedAt: Long?,
     val media: List<DouyinMedia>,
     val coverUrl: String?,
+    val audio: DouyinAudio?,
 )

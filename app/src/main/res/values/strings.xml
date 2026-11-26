@@ -34,10 +34,8 @@
 
     <string name="profile_start_creation">开始创作</string>
     <string name="profile_copy_work">复制作品</string>
-    <string name="profile_drafts">草稿箱</string>
     <string name="profile_works">我的作品</string>
-    <string name="profile_empty_drafts">还没有草稿</string>
-    <string name="profile_empty_works">还没有发布的作品</string>
+    <string name="profile_empty_works">还没有作品</string>
     <string name="profile_delete_title">删除作品</string>
     <string name="profile_delete_message">确定删除「%1$s」吗？本地文件会一并删除，且不可恢复。</string>
 
@@ -47,6 +45,8 @@
     <string name="douyin_dialog_title">复制抖音作品</string>
     <string name="douyin_dialog_hint">粘贴抖音分享链接</string>
     <string name="douyin_dialog_helper">整段分享文案也可以。解析后可修改文案、删除不需要的素材。</string>
+    <string name="douyin_dialog_clear">清空</string>
+    <string name="douyin_dialog_fill">填充</string>
     <string name="douyin_dialog_parse">解析</string>
 
     <string name="douyin_import_title">复制作品</string>
@@ -54,6 +54,8 @@
     <string name="douyin_import_author_id">抖音号：%1$s</string>
     <string name="douyin_import_published_at">发布于 %1$s</string>
     <string name="douyin_import_media_title">素材（%1$d）</string>
+    <string name="douyin_import_audio_included">作品音频已识别，将随图文一起保存</string>
+    <string name="douyin_import_audio_missing">未解析到作品音频，本次只能保存图片</string>
     <string name="douyin_import_saving">正在下载 %1$d/%2$d</string>
     <string name="douyin_import_expired">解析结果已失效，请返回重新复制</string>
 

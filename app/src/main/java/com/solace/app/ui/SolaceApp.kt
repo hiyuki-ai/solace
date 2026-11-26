@@ -22,9 +22,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -67,7 +70,6 @@ fun SolaceApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val backStack by navController.currentBackStack.collectAsState()
 
     val isTabRoute = SolaceDestination.entries.any { it.route == currentRoute }
     // 文件夹与作品浏览页也保留底部导航栏，不做全屏，避免进度条和系统手势区打架。
@@ -75,12 +77,15 @@ fun SolaceApp() {
     val isPlaybackRoute = currentRoute == ROUTE_WORK
 
     // 子页面（文件夹 / 作品）没有自己的 tab，高亮停留在进入它之前的那个 tab。
-    val selectedTabRoute = backStack
-        .lastOrNull { entry ->
-            SolaceDestination.entries.any { it.route == entry.destination.route }
-        }
-        ?.destination
+    var selectedTabRoute by rememberSaveable {
+        mutableStateOf(SolaceDestination.Library.route)
+    }
+    val currentTabRoute = SolaceDestination.entries
+        .firstOrNull { it.route == currentRoute }
         ?.route
+    LaunchedEffect(currentTabRoute) {
+        if (currentTabRoute != null) selectedTabRoute = currentTabRoute
+    }
 
     // 播放作品时是深色画面，其余页面是亮色，系统栏图标跟着切换。
     SystemBarAppearance(darkBackground = isPlaybackRoute || currentRoute == ROUTE_PLAYER)

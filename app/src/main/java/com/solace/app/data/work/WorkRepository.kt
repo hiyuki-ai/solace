@@ -16,6 +16,8 @@ class WorkRepository(context: Context) {
 
     fun observePublished(): Flow<List<WorkWithMedia>> = dao.observeByStatus(WorkStatus.PUBLISHED)
 
+    fun observeAll(): Flow<List<WorkWithMedia>> = dao.observeAll()
+
     suspend fun get(workId: String): WorkWithMedia? = dao.getById(workId)
 
     /**

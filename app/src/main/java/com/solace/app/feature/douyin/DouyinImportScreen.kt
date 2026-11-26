@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.solace.app.R
 import com.solace.app.data.douyin.DouyinMedia
+import com.solace.app.data.douyin.DouyinKind
 import com.solace.app.data.douyin.DouyinWork
 import com.solace.app.data.work.MediaKind
 import java.text.SimpleDateFormat
@@ -175,6 +177,40 @@ fun DouyinImportScreen(
                                 media.url
                             },
                             onRemove = { viewModel.removeAt(index) },
+                        )
+                    }
+                }
+
+                if (state.work?.kind == DouyinKind.IMAGES) {
+                    val hasAudio = state.work.audio != null
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (hasAudio) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                        )
+                        Text(
+                            text = stringResource(
+                                if (hasAudio) {
+                                    R.string.douyin_import_audio_included
+                                } else {
+                                    R.string.douyin_import_audio_missing
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (hasAudio) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
                         )
                     }
                 }

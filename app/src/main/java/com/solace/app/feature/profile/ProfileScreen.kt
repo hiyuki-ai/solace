@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -48,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.solace.app.R
 import com.solace.app.data.douyin.DouyinWork
+import com.solace.app.data.work.WorkStatus
 import com.solace.app.data.work.WorkRepository
 import com.solace.app.data.work.WorkWithMedia
 import com.solace.app.feature.douyin.DouyinLinkDialog
@@ -63,8 +63,7 @@ fun ProfileScreen(
 ) {
     val context = LocalContext.current
     val repository = remember(context) { WorkRepository(context) }
-    val drafts by repository.observeDrafts().collectAsState(initial = emptyList())
-    val published by repository.observePublished().collectAsState(initial = emptyList())
+    val works by repository.observeAll().collectAsState(initial = emptyList())
     var showDouyinDialog by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<WorkWithMedia?>(null) }
     val scope = rememberCoroutineScope()
@@ -72,13 +71,15 @@ fun ProfileScreen(
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, top = 12.dp, end = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Button(
@@ -102,45 +103,29 @@ fun ProfileScreen(
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionTitle(
-                title = stringResource(R.string.profile_drafts),
-                count = drafts.size,
-            )
-        }
-
-        if (drafts.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                EmptyHint(text = stringResource(R.string.profile_empty_drafts))
-            }
-        } else {
-            items(items = drafts, key = { it.work.id }) { work ->
-                WorkCard(
-                    work = work,
-                    repository = repository,
-                    badge = stringResource(R.string.work_draft_badge),
-                    onClick = { onOpenDraft(work.work.id) },
-                    onDelete = { pendingDelete = work },
-                )
-            }
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionTitle(
                 title = stringResource(R.string.profile_works),
-                count = published.size,
+                count = works.size,
             )
         }
 
-        if (published.isEmpty()) {
+        if (works.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyHint(text = stringResource(R.string.profile_empty_works))
             }
         } else {
-            items(items = published, key = { it.work.id }) { work ->
+            items(items = works, key = { it.work.id }) { work ->
+                val isDraft = work.work.status == WorkStatus.DRAFT
                 WorkCard(
                     work = work,
                     repository = repository,
-                    badge = null,
-                    onClick = { onOpenWork(work.work.id) },
+                    badge = if (isDraft) stringResource(R.string.work_draft_badge) else null,
+                    onClick = {
+                        if (isDraft) {
+                            onOpenDraft(work.work.id)
+                        } else {
+                            onOpenWork(work.work.id)
+                        }
+                    },
                     onDelete = { pendingDelete = work },
                 )
             }
@@ -197,7 +182,7 @@ private fun SectionTitle(title: String, count: Int) {
     Text(
         text = "$title ($count)",
         style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 6.dp),
     )
 }
 
@@ -207,7 +192,7 @@ private fun EmptyHint(text: String) {
         text = text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = 8.dp),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }
 
@@ -219,71 +204,70 @@ fun WorkCard(
     onClick: () -> Unit,
     onDelete: (() -> Unit)? = null,
 ) {
-    Card(onClick = onClick) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-        ) {
-            AsyncImage(
-                model = repository.coverFile(work.work.id, work.coverRelativePath),
-                contentDescription = work.work.caption,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (badge != null) {
-                Text(
-                    text = badge,
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp)
-                        .background(
-                            color = Color.Black.copy(alpha = 0.55f),
-                            shape = RoundedCornerShape(4.dp),
-                        )
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                )
-            }
-            // 只有「我」页面传了 onDelete；画廊复用同一个卡片时不显示删除入口。
-            val delete = onDelete
-            if (delete != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(36.dp)
-                        .clickable(onClick = delete),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = stringResource(R.string.action_delete),
-                            tint = Color.White,
-                            modifier = Modifier.size(15.dp),
-                        )
-                    }
-                }
-            }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(3f / 4f)
+            .clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = repository.coverFile(work.work.id, work.coverRelativePath),
+            contentDescription = work.work.caption,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (badge != null) {
             Text(
-                text = work.work.caption.ifBlank { stringResource(R.string.work_untitled) },
+                text = badge,
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .align(Alignment.TopStart)
+                    .padding(4.dp)
+                    .background(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(4.dp),
+                    )
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
+        // 只有「我」页面传了 onDelete；画廊复用同一个卡片时不显示删除入口。
+        val delete = onDelete
+        if (delete != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(36.dp)
+                    .clickable(onClick = delete),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = stringResource(R.string.action_delete),
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
+        }
+        Text(
+            text = work.work.caption.ifBlank { stringResource(R.string.work_untitled) },
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        )
     }
 }

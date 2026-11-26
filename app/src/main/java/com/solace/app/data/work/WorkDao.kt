@@ -15,6 +15,10 @@ abstract class WorkDao {
     abstract fun observeByStatus(status: String): Flow<List<WorkWithMedia>>
 
     @Transaction
+    @Query("SELECT * FROM works ORDER BY updatedAt DESC")
+    abstract fun observeAll(): Flow<List<WorkWithMedia>>
+
+    @Transaction
     @Query("SELECT * FROM works WHERE id = :id LIMIT 1")
     abstract suspend fun getById(id: String): WorkWithMedia?
 

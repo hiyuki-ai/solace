@@ -30,6 +30,14 @@ class DouyinParseViewModel : ViewModel() {
         uiState = uiState.copy(link = value, error = null)
     }
 
+    fun fillFromClipboard(value: String?) {
+        if (value.isNullOrBlank()) {
+            uiState = uiState.copy(error = "剪贴板中没有可填充的内容")
+        } else {
+            onLinkChange(value)
+        }
+    }
+
     fun parse() {
         val state = uiState
         if (state.parsing) return
@@ -60,8 +68,8 @@ class DouyinParseViewModel : ViewModel() {
         uiState = uiState.copy(result = null)
     }
 
-    /** 解析成功后清空输入，下次打开弹窗重新读剪贴板。 */
+    /** 解析成功后清空输入。 */
     fun clearLink() {
-        uiState = uiState.copy(link = "")
+        uiState = uiState.copy(link = "", error = null)
     }
 }

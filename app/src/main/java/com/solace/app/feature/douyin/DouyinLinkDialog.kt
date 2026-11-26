@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
@@ -25,8 +26,6 @@ import com.solace.app.data.douyin.DouyinWork
 
 /**
  * 复制抖音作品的第一步：粘贴分享链接并解析。
- *
- * 打开时自动读取剪贴板——分享链接通常就是刚复制的那段文案。
  */
 @Composable
 fun DouyinLinkDialog(
@@ -36,14 +35,6 @@ fun DouyinLinkDialog(
     val context = LocalContext.current
     val viewModel: DouyinParseViewModel = viewModel()
     val state = viewModel.uiState
-
-    LaunchedEffect(Unit) {
-        if (state.link.isBlank()) {
-            clipboardText(context)
-                ?.takeIf { it.contains("douyin.com", ignoreCase = true) }
-                ?.let(viewModel::onLinkChange)
-        }
-    }
 
     LaunchedEffect(state.result) {
         state.result?.let { work ->
@@ -67,6 +58,25 @@ fun DouyinLinkDialog(
                     maxLines = 5,
                     enabled = !state.parsing,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        onClick = viewModel::clearLink,
+                        enabled = state.link.isNotEmpty() && !state.parsing,
+                    ) {
+                        Text(text = stringResource(R.string.douyin_dialog_clear))
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.fillFromClipboard(clipboardText(context))
+                        },
+                        enabled = !state.parsing,
+                    ) {
+                        Text(text = stringResource(R.string.douyin_dialog_fill))
+                    }
+                }
                 Text(
                     text = stringResource(R.string.douyin_dialog_helper),
                     style = MaterialTheme.typography.bodySmall,

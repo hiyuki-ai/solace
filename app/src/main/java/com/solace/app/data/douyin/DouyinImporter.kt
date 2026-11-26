@@ -25,16 +25,18 @@ class DouyinImporter {
         storage: WorksStorage,
         coverUrl: String?,
         media: List<DouyinMedia>,
+        audio: DouyinAudio?,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): ImportResult = withContext(Dispatchers.IO) {
         val dir = storage.stagingDir(workId)
         dir.deleteRecursively()
         dir.mkdirs()
         val mediaDir = storage.mediaDir(dir)
+        val total = media.size + if (audio != null) 1 else 0
 
         val imported = ArrayList<ImportedMedia>(media.size)
         media.forEachIndexed { index, item ->
-            onProgress(index, media.size)
+            onProgress(index, total)
             val temp = File(mediaDir, "%03d.download".format(index))
             val contentType = try {
                 DouyinHttp.download(item.url, temp)
@@ -66,7 +68,33 @@ class DouyinImporter {
                 sizeBytes = target.length(),
             )
         }
-        onProgress(media.size, media.size)
+
+        if (audio != null) {
+            onProgress(media.size, total)
+            val index = media.size
+            val temp = File(mediaDir, "%03d.download".format(index))
+            val contentType = try {
+                DouyinHttp.download(audio.url, temp)
+            } catch (e: IOException) {
+                throw IOException("作品音频下载失败：${e.message}", e)
+            }
+
+            val extension = extensionFor(contentType, audio.url, MediaKind.AUDIO)
+            val target = File(mediaDir, "%03d.%s".format(index, extension))
+            if (!temp.renameTo(target)) {
+                temp.copyTo(target, overwrite = true)
+                temp.delete()
+            }
+            imported += ImportedMedia(
+                relativePath = "media/${target.name}",
+                kind = MediaKind.AUDIO,
+                width = null,
+                height = null,
+                durationMs = audio.durationMs,
+                sizeBytes = target.length(),
+            )
+        }
+        onProgress(total, total)
 
         ImportResult(
             media = imported,
@@ -77,6 +105,10 @@ class DouyinImporter {
     private fun extensionFor(contentType: String, url: String, kind: String): String {
         val type = contentType.substringBefore(';').trim().lowercase()
         return when {
+            type.contains("audio/mp4") || type.contains("m4a") -> "m4a"
+            type.contains("audio/mpeg") || type.contains("audio/mp3") -> "mp3"
+            type.contains("audio/aac") -> "aac"
+            type.contains("audio/ogg") -> "ogg"
             type.contains("mp4") -> "mp4"
             type.contains("webm") -> "webm"
             type.contains("quicktime") -> "mov"
@@ -85,6 +117,7 @@ class DouyinImporter {
             type.contains("webp") -> "webp"
             type.contains("heic") || type.contains("heif") -> "heic"
             kind == MediaKind.VIDEO -> "mp4"
+            kind == MediaKind.AUDIO -> urlExtension(url) ?: "mp3"
             else -> urlExtension(url) ?: "jpg"
         }
     }
@@ -93,7 +126,21 @@ class DouyinImporter {
         val name = url.substringBefore('?').substringAfterLast('/')
         val extension = name.substringAfterLast('.', "").lowercase()
         return extension.takeIf {
-            it in setOf("mp4", "webm", "mov", "jpg", "jpeg", "png", "webp", "heic", "heif")
+            it in setOf(
+                "mp4",
+                "webm",
+                "mov",
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "heic",
+                "heif",
+                "mp3",
+                "m4a",
+                "aac",
+                "ogg",
+            )
         }?.let { if (it == "jpeg") "jpg" else it }
     }
 

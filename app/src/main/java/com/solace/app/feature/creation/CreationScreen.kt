@@ -93,7 +93,7 @@ fun CreationScreen(
 
     val existingWork = state.existing
     val existingFiles = existingWork?.let { work ->
-        work.media.map { repository.mediaFile(work.work.id, it.fileName) }
+        work.visualMedia.map { repository.mediaFile(work.work.id, it.fileName) }
     }.orEmpty()
 
     val displayModels: List<Any> = if (state.picked.isNotEmpty()) {

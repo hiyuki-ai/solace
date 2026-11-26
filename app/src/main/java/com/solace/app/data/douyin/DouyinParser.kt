@@ -166,7 +166,12 @@ class DouyinParser {
                 is JSONObject -> {
                     val id = current.stringOrNull("aweme_id")
                     val looksLikeItem = current.has("desc") &&
-                        (current.has("video") || current.has("images"))
+                        (
+                            current.has("video") ||
+                                current.has("images") ||
+                                current.has("image_list") ||
+                                current.has("image_post_info")
+                            )
                     if (looksLikeItem && id == awemeId) return current
                     if (fallback == null && looksLikeItem && !id.isNullOrBlank()) {
                         fallback = current
@@ -189,14 +194,18 @@ class DouyinParser {
     }
 
     private fun buildWork(item: JSONObject, awemeId: String): DouyinWork {
+        val imagePost = item.optJSONObject("image_post_info")
         val images = item.optJSONArray("images")
+            ?: item.optJSONArray("image_list")
+            ?: imagePost?.optJSONArray("images")
+            ?: imagePost?.optJSONArray("image_list")
         val video = item.optJSONObject("video")
         val media = ArrayList<DouyinMedia>()
 
         if (images != null) {
             for (index in 0 until images.length()) {
                 val image = images.optJSONObject(index) ?: continue
-                val url = bestImageUrl(image.optJSONArray("url_list").toStringList()) ?: continue
+                val url = bestImageUrl(image) ?: continue
                 media += DouyinMedia(
                     kind = MediaKind.IMAGE,
                     url = url,
@@ -232,6 +241,7 @@ class DouyinParser {
             },
             media = media,
             coverUrl = if (isImagePost) null else coverUrlOf(video),
+            audio = if (isImagePost) buildAudio(item) else null,
         )
     }
 
@@ -241,62 +251,141 @@ class DouyinParser {
         uniqueId = author.stringOrNull("unique_id"),
         shortId = author.stringOrNull("short_id"),
         nickname = author.stringOrNull("nickname"),
-        avatarUrl = firstUrl(author.optJSONObject("avatar_thumb"))
+        avatarUrl = firstUrl(author.optJSONObject("avatar_larger"))
             ?: firstUrl(author.optJSONObject("avatar_medium"))
-            ?: firstUrl(author.optJSONObject("avatar_larger")),
+            ?: firstUrl(author.optJSONObject("avatar_thumb")),
     )
 
     private fun coverUrlOf(video: JSONObject?): String? {
         if (video == null) return null
-        return firstUrl(video.optJSONObject("cover"))
-            ?: firstUrl(video.optJSONObject("origin_cover"))
+        return firstUrl(video.optJSONObject("origin_cover"))
+            ?: firstUrl(video.optJSONObject("cover"))
             ?: firstUrl(video.optJSONObject("dynamic_cover"))
     }
 
     /**
-     * 优先挑最高码率的 H.264 版本；没有码率表就退回 play_addr。
-     * playwm 是带水印地址，换成 play 拿无水印版本。
+     * 先按分辨率、再按码率挑最高画质的 H.264 版本；没有码率表就退回 play_addr。
+     * 每个编码版本仍保留其 CDN 直链，不在应用内转码。
      */
     private fun bestVideoUrl(video: JSONObject): String? {
-        val candidates = ArrayList<String>()
+        data class Candidate(val url: String, val pixels: Int, val bitRate: Long)
 
-        val bitRates = video.optJSONArray("bit_rate")
-        if (bitRates != null) {
-            val entries = (0 until bitRates.length())
-                .mapNotNull { bitRates.optJSONObject(it) }
-                .sortedByDescending { it.optInt("bit_rate", 0) }
-            for (entry in entries) {
-                val format = entry.optString("format")
-                if (entry.optBoolean("is_h265", false) || format.contains("265")) continue
-                entry.optJSONObject("play_addr")
-                    ?.optJSONArray("url_list")
-                    ?.toStringList()
-                    ?.let(candidates::addAll)
-            }
+        val candidates = ArrayList<Candidate>()
+        fun addAddr(addr: JSONObject?, fallbackBitRate: Long = 0L) {
+            val width = addr?.intOrNull("width") ?: video.intOrNull("width") ?: 0
+            val height = addr?.intOrNull("height") ?: video.intOrNull("height") ?: 0
+            addr?.optJSONArray("url_list")
+                ?.toStringList()
+                ?.filter { it.isNotBlank() }
+                ?.forEach { candidates += Candidate(it, width * height, fallbackBitRate) }
         }
 
-        video.optJSONObject("play_addr")
-            ?.optJSONArray("url_list")
-            ?.toStringList()
-            ?.let(candidates::addAll)
-        video.optJSONObject("download_addr")
-            ?.optJSONArray("url_list")
-            ?.toStringList()
-            ?.let(candidates::addAll)
+        video.optJSONArray("bit_rate")?.let { bitRates ->
+            (0 until bitRates.length())
+                .mapNotNull { bitRates.optJSONObject(it) }
+                .filter { entry ->
+                    val format = entry.optString("format")
+                    !entry.optBoolean("is_h265", false) && !format.contains("265")
+                }
+                .forEach { entry ->
+                    val bitRate = entry.longOrNull("bit_rate")
+                        ?: entry.longOrNull("bitrate")
+                        ?: 0L
+                    addAddr(entry.optJSONObject("play_addr"), bitRate)
+                }
+        }
 
-        return candidates.asSequence()
-            .filter { it.isNotBlank() }
+        addAddr(video.optJSONObject("play_addr"))
+        addAddr(video.optJSONObject("play_addr_h264"))
+        addAddr(video.optJSONObject("download_addr_h264"))
+        addAddr(video.optJSONObject("download_addr"))
+
+        return candidates
+            .sortedWith(
+                compareByDescending<Candidate> { it.pixels }
+                    .thenByDescending { it.bitRate },
+            )
+            .asSequence()
+            .map { it.url }
             .map { it.https().replace("playwm", "play") }
+            .distinct()
             .firstOrNull()
     }
 
-    /** url_list 里通常同时有 webp 和 jpeg，优先拿 jpeg 原图。 */
-    private fun bestImageUrl(urls: List<String>): String? =
-        urls.firstOrNull {
-            it.contains(".jpeg", true) || it.contains(".png", true) || it.contains(".heic", true)
+    /**
+     * 图文数据有多组图片地址。优先无人工水印的原始 / 展示图，再回退到下载图；
+     * 每组里同时有 webp 和 jpeg 时拿 jpeg，避免应用里再次有损转码。
+     */
+    private fun bestImageUrl(image: JSONObject): String? {
+        val cleanSources = listOf(
+            urlsOf(image.optJSONObject("origin_image")),
+            urlsOf(image.optJSONObject("display_image")),
+            image.optJSONArray("url_list").toStringList(),
+        )
+        val fallbackSources = listOf(
+            urlsOf(image.optJSONObject("download_url")),
+            urlsOf(image.optJSONObject("download_image")),
+            image.optJSONArray("download_url_list").toStringList(),
+        )
+
+        return (cleanSources + fallbackSources)
+            .asSequence()
+            .mapNotNull(::pickImageUrl)
+            .firstOrNull()
+    }
+
+    private fun pickImageUrl(urls: List<String>): String? {
+        val normalized = urls
+            .asSequence()
+            .map { it.trim().https() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
+        val clean = normalized.filterNot { it.contains("watermark", ignoreCase = true) }
+        val preferred = clean.ifEmpty { normalized }
+        return preferred.firstOrNull {
+            it.contains(".jpeg", true) ||
+                it.contains(".jpg", true) ||
+                it.contains(".png", true)
+        } ?: preferred.firstOrNull {
+            !it.contains(".webp", true) && !it.contains(".heic", true)
+        } ?: preferred.firstOrNull()
+    }
+
+    private fun urlsOf(image: JSONObject?): List<String> =
+        image?.optJSONArray("url_list").toStringList()
+
+    private fun buildAudio(item: JSONObject): DouyinAudio? {
+        val music = item.optJSONObject("music")
+        val musicUrl = music
+            ?.optJSONObject("play_url")
+            ?.optJSONArray("url_list")
+            ?.toStringList()
+            ?.firstNotNullOfOrNull { it.playableUrl() }
+        // slides 图文的 BGM 不在 music.play_url，而在 video.play_addr.uri。
+        val slidesUrl = item
+            .optJSONObject("video")
+            ?.optJSONObject("play_addr")
+            ?.stringOrNull("uri")
+            ?.playableUrl()
+
+        val url = musicUrl ?: slidesUrl ?: return null
+        return DouyinAudio(
+            url = url,
+            title = music?.stringOrNull("title"),
+            durationMs = music?.longOrNull("duration"),
+        )
+    }
+
+    private fun String.playableUrl(): String? {
+        val value = trim().replace("playwm", "play")
+        return when {
+            value.startsWith("https://", ignoreCase = true) -> value
+            value.startsWith("http://", ignoreCase = true) -> value.https()
+            value.startsWith("//") -> "https:$value"
+            else -> null
         }
-            ?: urls.firstOrNull { !it.contains(".webp", true) }
-            ?: urls.firstOrNull()
+    }
 
     private fun firstUrl(image: JSONObject?): String? =
         image?.optJSONArray("url_list").toStringList().firstOrNull { it.isNotBlank() }?.https()

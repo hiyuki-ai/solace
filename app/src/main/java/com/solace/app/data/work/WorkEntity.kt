@@ -17,6 +17,7 @@ object WorkStatus {
 object MediaKind {
     const val VIDEO = "VIDEO"
     const val IMAGE = "IMAGE"
+    const val AUDIO = "AUDIO"
 }
 
 @Entity(
@@ -99,5 +100,17 @@ data class WorkWithMedia(
     @Relation(parentColumn = "id", entityColumn = "workId")
     val origin: WorkOriginEntity? = null,
 ) {
-    val coverRelativePath: String? get() = work.coverFile ?: media.firstOrNull()?.fileName
+    /** 图文音轨也是 work_media 的一行，浏览与编辑时只把画面素材当作分页项。 */
+    val visualMedia: List<WorkMediaEntity>
+        get() = media
+            .asSequence()
+            .filter { it.kind == MediaKind.IMAGE || it.kind == MediaKind.VIDEO }
+            .sortedBy { it.orderIndex }
+            .toList()
+
+    val audioFile: String?
+        get() = media.firstOrNull { it.kind == MediaKind.AUDIO }?.fileName
+
+    val coverRelativePath: String?
+        get() = work.coverFile ?: visualMedia.firstOrNull()?.fileName
 }

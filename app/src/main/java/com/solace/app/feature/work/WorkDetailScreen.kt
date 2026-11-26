@@ -60,11 +60,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.annotation.OptIn
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -180,13 +182,19 @@ private fun WorkFeedPage(
     active: Boolean,
     onBack: () -> Unit,
 ) {
+    val visualMedia = remember(work) { work.visualMedia }
     val files = remember(work) {
-        work.media.map { repository.mediaFile(work.work.id, it.fileName) }
+        visualMedia.map { repository.mediaFile(work.work.id, it.fileName) }
     }
-    val kinds = remember(work) { work.media.map { it.kind } }
-    val durations = remember(work) { work.media.map { it.durationMs ?: 0L } }
+    val kinds = remember(work) { visualMedia.map { it.kind } }
+    val durations = remember(work) { visualMedia.map { it.durationMs ?: 0L } }
     val cover = remember(work) {
         repository.coverFile(work.work.id, work.coverRelativePath)
+    }
+    val audioFile = remember(work) {
+        work.audioFile
+            ?.let { repository.mediaFile(work.work.id, it) }
+            ?.takeIf { it.exists() }
     }
 
     // 每个作品独立记录播放状态，切回来时从播放开始。
@@ -370,6 +378,13 @@ private fun WorkFeedPage(
             }
         }
 
+        if (audioFile != null) {
+            WorkAudio(
+                file = audioFile,
+                playing = active && playing && !scrubbing,
+            )
+        }
+
         TopBar(onBack = onBack)
 
         if (!playing) {
@@ -466,6 +481,31 @@ private class PlayerHandle {
     var player: ExoPlayer? = null
 }
 
+/** 图文作品没有视频容器，单独播放解析时保存的作品音轨。 */
+@Composable
+private fun WorkAudio(
+    file: File,
+    playing: Boolean,
+) {
+    val context = LocalContext.current
+    val player = remember(file) { ExoPlayer.Builder(context).build() }
+
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+
+    LaunchedEffect(player, file) {
+        player.repeatMode = Player.REPEAT_MODE_ONE
+        player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        player.prepare()
+    }
+
+    LaunchedEffect(player, playing) {
+        if (playing) player.play() else player.pause()
+    }
+}
+
+@OptIn(UnstableApi::class)
 @Composable
 private fun VideoStage(
     file: File,

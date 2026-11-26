@@ -85,7 +85,7 @@ class DouyinImportViewModel(application: Application) : AndroidViewModel(applica
                 saving = true,
                 error = null,
                 downloaded = 0,
-                total = state.media.size,
+                total = state.media.size + if (work.audio != null) 1 else 0,
             )
             val workId = UUID.randomUUID().toString()
             try {
@@ -95,6 +95,7 @@ class DouyinImportViewModel(application: Application) : AndroidViewModel(applica
                         storage = repository.storage,
                         coverUrl = work.coverUrl,
                         media = state.media,
+                        audio = work.audio,
                     ) { downloaded, total ->
                         viewModelScope.launch {
                             uiState = uiState.copy(downloaded = downloaded, total = total)
