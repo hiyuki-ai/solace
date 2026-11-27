@@ -4,6 +4,7 @@
 
     <string name="tab_library">图库</string>
     <string name="tab_gallery">画廊</string>
+    <string name="tab_category">分类</string>
     <string name="tab_profile">我</string>
 
     <string name="library_permission_title">访问本机视频</string>
@@ -59,10 +60,38 @@
     <string name="douyin_import_saving">正在下载 %1$d/%2$d</string>
     <string name="douyin_import_expired">解析结果已失效，请返回重新复制</string>
 
-    <string name="work_origin_douyin">来源：抖音 @%1$s</string>
-    <string name="work_origin_douyin_time">来源：抖音 @%1$s · %2$s</string>
+    <string name="work_user_handle">@%1$s</string>
+    <string name="work_open_user">查看用户详情</string>
 
     <string name="work_draft_badge">草稿</string>
     <string name="work_untitled">无描述</string>
     <string name="gallery_empty">还没有发布的作品</string>
+
+    <string name="category_user_tab">用户</string>
+    <string name="category_search_hint">输入昵称、ID 或账号标识</string>
+    <string name="category_open_search">搜索用户</string>
+    <string name="category_close_search">关闭搜索</string>
+    <string name="category_clear_search">清除搜索</string>
+    <string name="category_sort_name">名称</string>
+    <string name="category_sort_work_count">作品数</string>
+    <string name="category_user_unnamed">未命名用户</string>
+    <string name="category_user_card_work_count">%1$d</string>
+    <string name="category_user_detail_id">ID：%1$s</string>
+    <string name="category_works_title">作品</string>
+    <string name="category_empty_users">还没有用户</string>
+    <string name="category_empty_search">没有匹配的用户</string>
+    <string name="category_empty_user_works">该用户还没有作品</string>
+
+    <string name="user_editor_add">新增用户</string>
+    <string name="user_editor_edit">编辑用户</string>
+    <string name="user_editor_create_title">新增自定义用户</string>
+    <string name="user_editor_edit_title">编辑自定义用户</string>
+    <string name="user_editor_avatar">用户头像</string>
+    <string name="user_editor_choose_avatar">选择头像</string>
+    <string name="user_editor_nickname">昵称</string>
+    <string name="user_editor_nickname_hint">输入用户昵称</string>
+    <string name="user_editor_id">ID</string>
+    <string name="user_editor_id_hint">输入自定义 ID</string>
+    <string name="user_editor_save">保存</string>
+    <string name="user_editor_save_failed">保存失败，请重试</string>
 </resources>

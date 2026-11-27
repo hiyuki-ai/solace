@@ -43,6 +43,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.solace.app.feature.category.CategoryScreen
+import com.solace.app.feature.category.UserDetailScreen
 import com.solace.app.feature.creation.CreationScreen
 import com.solace.app.feature.douyin.DouyinImportHandoff
 import com.solace.app.feature.douyin.DouyinImportScreen
@@ -58,12 +60,14 @@ private const val ROUTE_FOLDER = "folder/{bucketId}"
 private const val ROUTE_PLAYER = "player/{bucketId}/{videoId}"
 private const val ROUTE_CREATION = "creation?draftId={draftId}"
 private const val ROUTE_WORK = "work/{workId}"
+private const val ROUTE_USER = "user/{userId}"
 private const val ROUTE_DOUYIN_IMPORT = "douyin-import"
 
 private const val ARG_BUCKET_ID = "bucketId"
 private const val ARG_VIDEO_ID = "videoId"
 private const val ARG_DRAFT_ID = "draftId"
 private const val ARG_WORK_ID = "workId"
+private const val ARG_USER_ID = "userId"
 
 @Composable
 fun SolaceApp() {
@@ -73,7 +77,10 @@ fun SolaceApp() {
 
     val isTabRoute = SolaceDestination.entries.any { it.route == currentRoute }
     // 文件夹与作品浏览页也保留底部导航栏，不做全屏，避免进度条和系统手势区打架。
-    val showBottomBar = isTabRoute || currentRoute == ROUTE_FOLDER || currentRoute == ROUTE_WORK
+    val showBottomBar = isTabRoute ||
+        currentRoute == ROUTE_FOLDER ||
+        currentRoute == ROUTE_WORK ||
+        currentRoute == ROUTE_USER
     val isPlaybackRoute = currentRoute == ROUTE_WORK
 
     // 子页面（文件夹 / 作品）没有自己的 tab，高亮停留在进入它之前的那个 tab。
@@ -140,6 +147,12 @@ fun SolaceApp() {
             }
             composable(SolaceDestination.Gallery.route) {
                 GalleryScreen(
+                    onOpenWork = { workId -> navController.navigate("work/$workId") },
+                    modifier = Modifier.padding(innerPadding),
+                )
+            }
+            composable(SolaceDestination.Category.route) {
+                CategoryScreen(
                     onOpenWork = { workId -> navController.navigate("work/$workId") },
                     modifier = Modifier.padding(innerPadding),
                 )
@@ -214,8 +227,19 @@ fun SolaceApp() {
                 WorkDetailScreen(
                     workId = entry.arguments?.getString(ARG_WORK_ID).orEmpty(),
                     onBack = { navController.popBackStack() },
+                    onOpenUser = { userId -> navController.navigate("user/$userId") },
                     // 顶部仍然全屏绘制，底部让出导航栏的高度。
                     modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
+                )
+            }
+            composable(
+                route = ROUTE_USER,
+                arguments = listOf(navArgument(ARG_USER_ID) { type = NavType.LongType }),
+            ) { entry ->
+                UserDetailScreen(
+                    userId = entry.arguments?.getLong(ARG_USER_ID) ?: 0L,
+                    onOpenWork = { workId -> navController.navigate("work/$workId") },
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
         }

@@ -25,6 +25,8 @@ data class ImportedMedia(
 data class ImportResult(
     val media: List<ImportedMedia>,
     val coverFile: String?,
+    /** 抖音作者头像相对 filesDir 的路径；本地创作作品为 null。 */
+    val authorAvatarFile: String? = null,
 )
 
 /**

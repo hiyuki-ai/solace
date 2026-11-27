@@ -22,7 +22,10 @@ object MediaKind {
 
 @Entity(
     tableName = "works",
-    indices = [Index(value = ["status", "updatedAt"])],
+    indices = [
+        Index(value = ["status", "updatedAt"]),
+        Index(value = ["userId"]),
+    ],
 )
 data class WorkEntity(
     @PrimaryKey val id: String,
@@ -32,6 +35,8 @@ data class WorkEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val publishedAt: Long?,
+    /** 作品关联的本地用户；未关联用户的本地原创作品为空。 */
+    val userId: Long? = null,
 )
 
 @Entity(
@@ -59,6 +64,45 @@ data class WorkMediaEntity(
     val sizeBytes: Long,
 )
 
+object UserKind {
+    const val DOUYIN = "DOUYIN"
+    const val CUSTOM = "CUSTOM"
+}
+
+/**
+ * 通用用户资料。
+ *
+ * 当前复制抖音作品会创建 [UserKind.DOUYIN] 用户，并优先按 [uid]、没有 [uid]
+ * 时按 [secUid] 去重。后续自定义用户使用 [UserKind.CUSTOM]，这些抖音身份字段
+ * 可以为空。抖音号等展示资料可能变化，不参与身份判定。
+ */
+@Entity(
+    tableName = "users",
+    indices = [
+        Index(value = ["kind", "uid"], unique = true),
+        Index(value = ["kind", "secUid"], unique = true),
+    ],
+)
+data class UserEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** [UserKind.DOUYIN] 或 [UserKind.CUSTOM]。 */
+    val kind: String,
+    val uid: String?,
+    val secUid: String?,
+    val uniqueId: String?,
+    val nickname: String?,
+    /** 应用私有目录下的相对路径，如 users/<hash>/avatar.jpg。 */
+    val avatarFile: String?,
+    val avatarUrl: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+data class UserWithWorkCount(
+    @Embedded val user: UserEntity,
+    val workCount: Int,
+)
+
 /**
  * 复制作品的来源信息，和作品是 1:1 关系。
  *
@@ -80,10 +124,6 @@ data class WorkOriginEntity(
     @PrimaryKey val workId: String,
     /** 来源平台，目前只有 douyin。 */
     val platform: String,
-    val authorName: String?,
-    /** 抖音号；作者没设置时是 short_id。 */
-    val authorId: String?,
-    val authorSecUid: String?,
     val awemeId: String?,
     /** 抖音侧的发布时间（毫秒时间戳）。 */
     val publishedAt: Long?,
@@ -99,6 +139,8 @@ data class WorkWithMedia(
     val media: List<WorkMediaEntity>,
     @Relation(parentColumn = "id", entityColumn = "workId")
     val origin: WorkOriginEntity? = null,
+    @Relation(parentColumn = "userId", entityColumn = "id")
+    val user: UserEntity? = null,
 ) {
     /** 图文音轨也是 work_media 的一行，浏览与编辑时只把画面素材当作分页项。 */
     val visualMedia: List<WorkMediaEntity>

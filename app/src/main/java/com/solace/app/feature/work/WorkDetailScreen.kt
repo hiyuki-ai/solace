@@ -56,6 +56,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -73,7 +74,6 @@ import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import com.solace.app.R
 import com.solace.app.data.work.MediaKind
-import com.solace.app.data.work.OriginPlatform
 import com.solace.app.data.work.WorkRepository
 import com.solace.app.data.work.WorkWithMedia
 import java.io.File
@@ -109,6 +109,7 @@ private data class WorkFeed(
 fun WorkDetailScreen(
     workId: String,
     onBack: () -> Unit,
+    onOpenUser: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -140,6 +141,7 @@ fun WorkDetailScreen(
                 feed = currentFeed,
                 repository = repository,
                 onBack = onBack,
+                onOpenUser = onOpenUser,
             )
 
             !resolved -> CircularProgressIndicator(
@@ -157,6 +159,7 @@ private fun WorkFeedPager(
     feed: WorkFeed,
     repository: WorkRepository,
     onBack: () -> Unit,
+    onOpenUser: (Long) -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = feed.initialIndex) { feed.works.size }
 
@@ -171,6 +174,7 @@ private fun WorkFeedPager(
             repository = repository,
             active = pagerState.currentPage == page,
             onBack = onBack,
+            onOpenUser = onOpenUser,
         )
     }
 }
@@ -181,6 +185,7 @@ private fun WorkFeedPage(
     repository: WorkRepository,
     active: Boolean,
     onBack: () -> Unit,
+    onOpenUser: (Long) -> Unit,
 ) {
     val visualMedia = remember(work) { work.visualMedia }
     val files = remember(work) {
@@ -195,6 +200,9 @@ private fun WorkFeedPage(
         work.audioFile
             ?.let { repository.mediaFile(work.work.id, it) }
             ?.takeIf { it.exists() }
+    }
+    val authorAvatar = remember(work.user?.avatarFile) {
+        repository.userAvatarFile(work.user?.avatarFile)
     }
 
     // 每个作品独立记录播放状态，切回来时从播放开始。
@@ -387,6 +395,36 @@ private fun WorkFeedPage(
 
         TopBar(onBack = onBack)
 
+        val user = work.user
+        if (user != null) {
+            val avatarModel = authorAvatar ?: user.avatarUrl
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.28f))
+                    .clickable { onOpenUser(user.id) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (avatarModel != null) {
+                    AsyncImage(
+                        model = avatarModel,
+                        contentDescription = stringResource(R.string.work_open_user),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(
+                        text = user.nickname?.trim()?.firstOrNull()?.toString().orEmpty(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            }
+        }
+
         if (!playing) {
             Box(
                 modifier = Modifier
@@ -420,26 +458,31 @@ private fun WorkFeedPage(
                 .padding(top = 32.dp, bottom = 4.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            val origin = work.origin
-            if (origin != null &&
-                origin.platform == OriginPlatform.DOUYIN &&
-                !origin.authorName.isNullOrBlank()
+            val user = work.user
+            if (user != null &&
+                !user.nickname.isNullOrBlank()
             ) {
-                val name = origin.authorName.orEmpty()
-                Text(
-                    text = if (origin.publishedAt != null) {
-                        stringResource(
-                            R.string.work_origin_douyin_time,
-                            name,
-                            formatOriginDate(origin.publishedAt),
-                        )
-                    } else {
-                        stringResource(R.string.work_origin_douyin, name)
-                    },
-                    color = Color.White.copy(alpha = 0.65f),
-                    style = MaterialTheme.typography.labelSmall,
+                val name = user.nickname.orEmpty()
+                val createdAt = work.origin?.publishedAt
+                    ?: work.work.publishedAt
+                    ?: work.work.createdAt
+                Row(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.work_user_handle, name),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = formatWorkDate(createdAt),
+                        color = Color.White.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
             if (work.work.caption.isNotBlank()) {
                 Text(
@@ -648,8 +691,7 @@ private fun formatProgressTime(millis: Long): String {
     return "$minutes:${(seconds % 60).toString().padStart(2, '0')}"
 }
 
-/** 来源作品只展示日期，避免信息过密。 */
-private fun formatOriginDate(millis: Long): String =
+private fun formatWorkDate(millis: Long): String =
     SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(millis))
 
 /**

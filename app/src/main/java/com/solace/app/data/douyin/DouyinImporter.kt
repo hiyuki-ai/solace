@@ -26,6 +26,7 @@ class DouyinImporter {
         coverUrl: String?,
         media: List<DouyinMedia>,
         audio: DouyinAudio?,
+        author: DouyinAuthor?,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): ImportResult = withContext(Dispatchers.IO) {
         val dir = storage.stagingDir(workId)
@@ -99,7 +100,29 @@ class DouyinImporter {
         ImportResult(
             media = imported,
             coverFile = coverUrl?.let { writeCover(dir, it) },
+            authorAvatarFile = writeAuthorAvatar(dir, storage, author),
         )
+    }
+
+    /** 头像下载失败不影响作品落盘；下次复制同一用户的作品时会再次尝试。 */
+    private fun writeAuthorAvatar(
+        dir: File,
+        storage: WorksStorage,
+        author: DouyinAuthor?,
+    ): String? {
+        val url = author?.avatarUrl ?: return null
+        if (author.uid.isNullOrBlank() && author.secUid.isNullOrBlank()) return null
+
+        val temp = File(dir, "author-avatar.download")
+        return try {
+            val contentType = DouyinHttp.download(url, temp)
+            val extension = extensionFor(contentType, url, MediaKind.IMAGE)
+            storage.storeUserAvatar(author.uid, author.secUid, temp, extension)
+        } catch (e: Exception) {
+            null
+        } finally {
+            temp.delete()
+        }
     }
 
     private fun extensionFor(contentType: String, url: String, kind: String): String {

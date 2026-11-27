@@ -10,6 +10,8 @@ import com.solace.app.data.douyin.DouyinImporter
 import com.solace.app.data.douyin.DouyinMedia
 import com.solace.app.data.douyin.DouyinWork
 import com.solace.app.data.work.OriginPlatform
+import com.solace.app.data.work.UserEntity
+import com.solace.app.data.work.UserKind
 import com.solace.app.data.work.WorkMediaEntity
 import com.solace.app.data.work.WorkOriginEntity
 import com.solace.app.data.work.WorkRepository
@@ -96,6 +98,7 @@ class DouyinImportViewModel(application: Application) : AndroidViewModel(applica
                         coverUrl = work.coverUrl,
                         media = state.media,
                         audio = work.audio,
+                        author = work.author,
                     ) { downloaded, total ->
                         viewModelScope.launch {
                             uiState = uiState.copy(downloaded = downloaded, total = total)
@@ -124,12 +127,22 @@ class DouyinImportViewModel(application: Application) : AndroidViewModel(applica
                     origin = WorkOriginEntity(
                         workId = workId,
                         platform = OriginPlatform.DOUYIN,
-                        authorName = work.author?.nickname,
-                        authorId = work.author?.displayId,
-                        authorSecUid = work.author?.secUid,
                         awemeId = work.awemeId,
                         publishedAt = work.publishedAt,
                     ),
+                    user = work.author?.let { author ->
+                        UserEntity(
+                            kind = UserKind.DOUYIN,
+                            uid = author.uid,
+                            secUid = author.secUid,
+                            uniqueId = author.uniqueId,
+                            nickname = author.nickname,
+                            avatarFile = result.authorAvatarFile,
+                            avatarUrl = author.avatarUrl,
+                            createdAt = 0L,
+                            updatedAt = 0L,
+                        )
+                    },
                 )
                 uiState = uiState.copy(saving = false, done = true)
             } catch (e: Exception) {

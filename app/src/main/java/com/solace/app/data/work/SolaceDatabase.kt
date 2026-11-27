@@ -8,8 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WorkEntity::class, WorkMediaEntity::class, WorkOriginEntity::class],
-    version = 3,
+    entities = [
+        WorkEntity::class,
+        WorkMediaEntity::class,
+        WorkOriginEntity::class,
+        UserEntity::class,
+    ],
+    version = 4,
     exportSchema = true,
 )
 abstract class SolaceDatabase : RoomDatabase() {
@@ -99,6 +104,82 @@ abstract class SolaceDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 → v4：作者资料从 work_origins 拆到通用 users 表。
+         *
+         * 旧版本只持久化过 authorSecUid，因此迁移时按 sec_uid 合并历史作者；
+         * 没有 sec_uid 的旧作品仍保留作品 ID / 发布时间，但用户关联为空。
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `works` ADD COLUMN `userId` INTEGER")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_works_userId` " +
+                        "ON `works` (`userId`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `users` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`kind` TEXT NOT NULL, " +
+                        "`uid` TEXT, " +
+                        "`secUid` TEXT, " +
+                        "`uniqueId` TEXT, " +
+                        "`nickname` TEXT, " +
+                        "`avatarFile` TEXT, " +
+                        "`avatarUrl` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_users_kind_uid` " +
+                        "ON `users` (`kind`, `uid`)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_users_kind_secUid` " +
+                        "ON `users` (`kind`, `secUid`)",
+                )
+
+                val now = System.currentTimeMillis()
+                db.execSQL(
+                    "INSERT INTO `users` " +
+                        "(`kind`, `uid`, `secUid`, `uniqueId`, `nickname`, `avatarFile`, `avatarUrl`, " +
+                        "`createdAt`, `updatedAt`) " +
+                        "SELECT '${UserKind.DOUYIN}', NULL, `authorSecUid`, MAX(`authorId`), " +
+                        "MAX(`authorName`), " +
+                        "NULL, NULL, $now, $now " +
+                        "FROM `work_origins` " +
+                        "WHERE `authorSecUid` IS NOT NULL AND TRIM(`authorSecUid`) <> '' " +
+                        "GROUP BY `authorSecUid`",
+                )
+                db.execSQL(
+                    "UPDATE `works` SET `userId` = (" +
+                        "SELECT u.`id` FROM `work_origins` o " +
+                        "INNER JOIN `users` u ON u.`kind` = '${UserKind.DOUYIN}' " +
+                        "AND u.`secUid` = o.`authorSecUid` " +
+                        "WHERE o.`workId` = `works`.`id` LIMIT 1)",
+                )
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `work_origins_new` (" +
+                        "`workId` TEXT NOT NULL, " +
+                        "`platform` TEXT NOT NULL, " +
+                        "`awemeId` TEXT, " +
+                        "`publishedAt` INTEGER, " +
+                        "PRIMARY KEY(`workId`), " +
+                        "FOREIGN KEY(`workId`) REFERENCES `works`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL(
+                    "INSERT INTO `work_origins_new` " +
+                        "(`workId`, `platform`, `awemeId`, `publishedAt`) " +
+                        "SELECT o.`workId`, o.`platform`, o.`awemeId`, o.`publishedAt` " +
+                        "FROM `work_origins` o",
+                )
+                db.execSQL("DROP TABLE `work_origins`")
+                db.execSQL("ALTER TABLE `work_origins_new` RENAME TO `work_origins`")
+            }
+        }
+
         @Volatile
         private var instance: SolaceDatabase? = null
 
@@ -109,7 +190,7 @@ abstract class SolaceDatabase : RoomDatabase() {
                     SolaceDatabase::class.java,
                     NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

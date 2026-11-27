@@ -1,6 +1,7 @@
 package com.solace.app.data.work
 
 import android.content.Context
+import android.net.Uri
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,85 @@ class WorkRepository(context: Context) {
 
     fun observeAll(): Flow<List<WorkWithMedia>> = dao.observeAll()
 
+    fun observeUserWorks(userId: Long): Flow<List<WorkWithMedia>> =
+        dao.observeByUser(userId)
+
+    fun observeUser(userId: Long): Flow<UserEntity?> =
+        dao.observeUser(userId)
+
+    fun observeUsers(): Flow<List<UserWithWorkCount>> =
+        dao.observeUsersWithWorkCount()
+
+    suspend fun createCustomUser(
+        nickname: String,
+        customId: String,
+        avatarUri: Uri?,
+    ): UserEntity = withContext(Dispatchers.IO) {
+        val name = nickname.trim()
+        val identity = customId.trim()
+        require(name.isNotEmpty()) { "请填写昵称" }
+        require(identity.isNotEmpty()) { "请填写 ID" }
+        require(dao.findUserByUniqueId(UserKind.CUSTOM, identity) == null) {
+            "该 ID 已被使用"
+        }
+
+        val avatarFile = avatarUri?.let(storage::importUserAvatar)
+        val now = System.currentTimeMillis()
+        val user = UserEntity(
+            kind = UserKind.CUSTOM,
+            uid = null,
+            secUid = null,
+            uniqueId = identity,
+            nickname = name,
+            avatarFile = avatarFile,
+            avatarUrl = null,
+            createdAt = now,
+            updatedAt = now,
+        )
+        try {
+            user.copy(id = dao.insertUser(user))
+        } catch (e: Exception) {
+            storage.deleteUserAvatar(avatarFile)
+            throw e
+        }
+    }
+
+    suspend fun updateCustomUser(
+        userId: Long,
+        nickname: String,
+        customId: String,
+        avatarUri: Uri?,
+    ): UserEntity = withContext(Dispatchers.IO) {
+        val current = dao.getUser(userId)
+            ?: throw IllegalArgumentException("用户不存在")
+        require(current.kind == UserKind.CUSTOM) { "抖音用户信息不能在本地修改" }
+
+        val name = nickname.trim()
+        val identity = customId.trim()
+        require(name.isNotEmpty()) { "请填写昵称" }
+        require(identity.isNotEmpty()) { "请填写 ID" }
+        val duplicate = dao.findUserByUniqueId(UserKind.CUSTOM, identity)
+        require(duplicate == null || duplicate.id == userId) { "该 ID 已被使用" }
+
+        val newAvatarFile = avatarUri?.let(storage::importUserAvatar)
+        val updated = current.copy(
+            uniqueId = identity,
+            nickname = name,
+            avatarFile = newAvatarFile ?: current.avatarFile,
+            updatedAt = System.currentTimeMillis(),
+        )
+        try {
+            dao.updateUser(updated)
+        } catch (e: Exception) {
+            storage.deleteUserAvatar(newAvatarFile)
+            throw e
+        }
+        if (newAvatarFile != null && newAvatarFile != current.avatarFile) {
+            storage.deleteUserAvatar(current.avatarFile)
+        }
+        updated
+    }
+
     suspend fun get(workId: String): WorkWithMedia? = dao.getById(workId)
 
     /**
@@ -32,6 +112,7 @@ class WorkRepository(context: Context) {
         coverFile: String?,
         commitStaging: Boolean,
         origin: WorkOriginEntity? = null,
+        user: UserEntity? = null,
     ) {
         withContext(Dispatchers.IO) {
             if (commitStaging) {
@@ -53,9 +134,11 @@ class WorkRepository(context: Context) {
                     } else {
                         null
                     },
+                    userId = existing?.userId,
                 ),
                 media,
                 origin ?: current?.origin,
+                user,
             )
         }
     }
@@ -75,4 +158,9 @@ class WorkRepository(context: Context) {
 
     fun mediaFile(workId: String, relativePath: String): File =
         File(storage.workDir(workId), relativePath)
+
+    fun userAvatarFile(relativePath: String?): File? {
+        if (relativePath.isNullOrBlank()) return null
+        return File(appContext.filesDir, relativePath).takeIf { it.isFile }
+    }
 }
