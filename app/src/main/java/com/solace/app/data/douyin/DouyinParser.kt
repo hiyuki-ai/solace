@@ -1,5 +1,6 @@
 package com.solace.app.data.douyin
 
+import android.content.Context
 import com.solace.app.data.work.MediaKind
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -13,16 +14,18 @@ class DouyinParseException(message: String) : IOException(message)
 /**
  * 解析抖音分享链接，拿到文案、作者、发布时间和素材直链。
  *
- * 走的是抖音给 H5 分享页下发的 SSR 数据：
+ * 普通视频走抖音给 H5 分享页下发的 SSR 数据：
  * 1. 短链 302 到 www.iesdouyin.com/share/video/{aweme_id}；
  * 2. 第一次请求分享页只下发 ttwid Cookie，带上它再请求一次才返回完整数据；
- * 3. 页面里的 `window._ROUTER_DATA` 就是作品 JSON，视频和图文都挂在
- *    `item_list[0]` 上（图文走同一个 /share/video/ 地址也能拿到）。
+ * 3. 页面里的 `window._ROUTER_DATA` 就是作品 JSON。
+ *
+ * 图文 / slides 会继续跳到 www.douyin.com/note/{aweme_id}，完整 JSON 由前端
+ * 异步加载；这类页面交给 [DouyinSlidesResolver] 读取，才能保留实况视频。
  *
  * 全程不需要登录态和签名；作品被删、设为私密或触发风控时页面只有空壳，
  * 这里统一提示作品不可见。
  */
-class DouyinParser {
+class DouyinParser(private val context: Context? = null) {
 
     suspend fun parse(shareText: String): DouyinWork = withContext(Dispatchers.IO) {
         val input = shareText.trim()
@@ -34,6 +37,16 @@ class DouyinParser {
         val finalUrl = if (findAwemeId(link) != null) link else resolveFinalUrl(link)
         val awemeId = findAwemeId(finalUrl)
             ?: throw DouyinParseException("无法识别作品，请确认链接是否有效")
+
+        // 抖音会把 slides 分享页继续重定向到 /note/{id}。普通图文也使用
+        // /note/{id}，因此这里统一从 note 页读取完整素材数据，确认不是
+        // 实况时解析器仍会把静态图原样返回。
+        if (link.isSlidesOrNoteShare() || finalUrl.isSlidesOrNoteShare()) {
+            val resolved = context?.let { appContext ->
+                DouyinSlidesResolver(appContext).resolve(finalUrl, awemeId)
+            }
+            if (resolved != null) return@withContext resolved
+        }
 
         val html = loadSharePage(awemeId)
         val root = extractRouterData(html)
@@ -59,6 +72,10 @@ class DouyinParser {
 
     private fun findAwemeId(url: String): String? =
         AWEME_ID_PATTERNS.firstNotNullOfOrNull { it.find(url)?.groupValues?.get(1) }
+
+    private fun String.isSlidesOrNoteShare(): Boolean =
+        contains("/share/slides/", ignoreCase = true) ||
+            contains("/note/", ignoreCase = true)
 
     /**
      * 分享页要用 ttwid Cookie 才会吐数据：第一次请求只为拿 Cookie，
@@ -205,14 +222,33 @@ class DouyinParser {
         if (images != null) {
             for (index in 0 until images.length()) {
                 val image = images.optJSONObject(index) ?: continue
-                val url = bestImageUrl(image) ?: continue
-                media += DouyinMedia(
-                    kind = MediaKind.IMAGE,
-                    url = url,
-                    width = image.intOrNull("width"),
-                    height = image.intOrNull("height"),
-                    durationMs = null,
-                )
+                val imageUrl = bestImageUrl(image)
+                val liveVideo = image.optJSONObject("video")
+                val liveVideoUrl = liveVideo?.let(::bestVideoUrl)
+                when {
+                    /**
+                     * 抖音实况图是一张静图配一个短 MP4。应用内没有独立的
+                     * Motion Photo 类型，因此把动态视频作为一个素材保存，
+                     * 静图继续作为封面和导入预览。
+                     */
+                    liveVideoUrl != null -> media += DouyinMedia(
+                        kind = MediaKind.VIDEO,
+                        url = liveVideoUrl,
+                        width = liveVideo.intOrNull("width") ?: image.intOrNull("width"),
+                        height = liveVideo.intOrNull("height") ?: image.intOrNull("height"),
+                        durationMs = liveVideo.longOrNull("duration"),
+                        previewUrl = imageUrl,
+                    )
+
+                    imageUrl != null -> media += DouyinMedia(
+                        kind = MediaKind.IMAGE,
+                        url = imageUrl,
+                        width = image.intOrNull("width"),
+                        height = image.intOrNull("height"),
+                        durationMs = null,
+                        previewUrl = imageUrl,
+                    )
+                }
             }
         }
 
@@ -230,7 +266,7 @@ class DouyinParser {
 
         if (media.isEmpty()) throw DouyinParseException("没有解析到可用的视频或图片")
 
-        val isImagePost = media.first().kind == MediaKind.IMAGE
+        val isImagePost = images != null && images.length() > 0
         return DouyinWork(
             awemeId = awemeId,
             kind = if (isImagePost) DouyinKind.IMAGES else DouyinKind.VIDEO,
@@ -240,7 +276,11 @@ class DouyinParser {
                 if (seconds > 10_000_000_000L) seconds else seconds * 1000L
             },
             media = media,
-            coverUrl = if (isImagePost) null else coverUrlOf(video),
+            coverUrl = if (isImagePost) {
+                media.firstOrNull()?.previewUrl
+            } else {
+                coverUrlOf(video)
+            },
             audio = if (isImagePost) buildAudio(item) else null,
         )
     }
@@ -280,25 +320,41 @@ class DouyinParser {
                 ?.forEach { candidates += Candidate(it, width * height, fallbackBitRate) }
         }
 
-        video.optJSONArray("bit_rate")?.let { bitRates ->
+        (video.optJSONArray("bit_rate") ?: video.optJSONArray("bitRate"))?.let { bitRates ->
             (0 until bitRates.length())
                 .mapNotNull { bitRates.optJSONObject(it) }
                 .filter { entry ->
-                    val format = entry.optString("format")
-                    !entry.optBoolean("is_h265", false) && !format.contains("265")
+                    val format = entry.optString("format") + entry.optString("codec")
+                    !entry.optBoolean("is_h265", false) &&
+                        !entry.optBoolean("isH265", false) &&
+                        !format.contains("265")
                 }
                 .forEach { entry ->
                     val bitRate = entry.longOrNull("bit_rate")
+                        ?: entry.longOrNull("bitRate")
                         ?: entry.longOrNull("bitrate")
                         ?: 0L
-                    addAddr(entry.optJSONObject("play_addr"), bitRate)
+                    addAddr(
+                        entry.optJSONObject("play_addr")
+                            ?: entry.optJSONObject("playAddr"),
+                        bitRate,
+                    )
                 }
         }
 
-        addAddr(video.optJSONObject("play_addr"))
-        addAddr(video.optJSONObject("play_addr_h264"))
-        addAddr(video.optJSONObject("download_addr_h264"))
-        addAddr(video.optJSONObject("download_addr"))
+        addAddr(video.optJSONObject("play_addr") ?: video.optJSONObject("playAddr"))
+        addAddr(
+            video.optJSONObject("play_addr_h264")
+                ?: video.optJSONObject("playAddrH264"),
+        )
+        addAddr(
+            video.optJSONObject("download_addr_h264")
+                ?: video.optJSONObject("downloadAddrH264"),
+        )
+        addAddr(
+            video.optJSONObject("download_addr")
+                ?: video.optJSONObject("downloadAddr"),
+        )
 
         return candidates
             .sortedWith(
@@ -354,6 +410,7 @@ class DouyinParser {
 
     private fun urlsOf(image: JSONObject?): List<String> =
         image?.optJSONArray("url_list").toStringList()
+            .ifEmpty { image?.optJSONArray("urlList").toStringList() }
 
     private fun buildAudio(item: JSONObject): DouyinAudio? {
         val music = item.optJSONObject("music")
@@ -388,12 +445,19 @@ class DouyinParser {
     }
 
     private fun firstUrl(image: JSONObject?): String? =
-        image?.optJSONArray("url_list").toStringList().firstOrNull { it.isNotBlank() }?.https()
+        urlsOf(image).firstOrNull { it.isNotBlank() }?.https()
 
     private fun JSONArray?.toStringList(): List<String> {
         if (this == null) return emptyList()
         return (0 until length()).mapNotNull { index ->
-            optString(index).takeIf { it.isNotBlank() }
+            val value = opt(index)
+            when (value) {
+                is String -> value.takeIf { it.isNotBlank() }
+                is JSONObject -> value.stringOrNull("src")
+                    ?: value.stringOrNull("url")
+                    ?: value.stringOrNull("uri")
+                else -> null
+            }
         }
     }
 

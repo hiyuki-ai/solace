@@ -170,12 +170,13 @@ fun DouyinImportScreen(
                     itemsIndexed(state.media) { index, media ->
                         MediaThumb(
                             media = media,
-                            // 视频用封面预览，别让 Coil 去下载整个 mp4 解码首帧。
-                            previewUrl = if (media.kind == MediaKind.VIDEO) {
-                                state.work?.coverUrl
-                            } else {
-                                media.url
-                            },
+                            // 实况和普通视频都优先使用静态预览，避免下载整个 MP4。
+                            previewUrl = media.previewUrl
+                                ?: if (media.kind == MediaKind.VIDEO) {
+                                    state.work?.coverUrl
+                                } else {
+                                    media.url
+                                },
                             onRemove = { viewModel.removeAt(index) },
                         )
                     }

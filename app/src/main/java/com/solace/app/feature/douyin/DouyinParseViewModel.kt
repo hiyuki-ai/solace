@@ -1,9 +1,10 @@
 package com.solace.app.feature.douyin
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.solace.app.data.douyin.DouyinParseException
 import com.solace.app.data.douyin.DouyinParser
@@ -19,9 +20,9 @@ data class DouyinParseUiState(
 )
 
 /** 弹窗里的解析状态；解析成功后把结果交给 [DouyinImportScreen]。 */
-class DouyinParseViewModel : ViewModel() {
+class DouyinParseViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val parser = DouyinParser()
+    private val parser = DouyinParser(application)
 
     var uiState by mutableStateOf(DouyinParseUiState())
         private set

@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.solace.app.R
+import com.solace.app.SolaceApplication
 import com.solace.app.data.work.UserEntity
 import com.solace.app.data.work.UserKind
 import com.solace.app.data.work.UserWithWorkCount
@@ -86,7 +87,7 @@ private enum class UserSort(@param:StringRes val labelRes: Int) {
  */
 @Composable
 fun CategoryScreen(
-    onOpenWork: (String) -> Unit,
+    onOpenWork: (workId: String, userId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -112,36 +113,51 @@ fun CategoryScreen(
 
 @Composable
 private fun UserCategory(
-    onOpenWork: (String) -> Unit,
+    onOpenWork: (workId: String, userId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val repository = remember(context) { WorkRepository(context) }
-    val users by repository.observeUsers().collectAsState(initial = emptyList())
+    val application = remember(context) {
+        context.applicationContext as SolaceApplication
+    }
+    val repository = application.workRepository
+    val users by application.categoryUsers.collectAsState()
+    val loadedUsers = users.orEmpty()
     var query by rememberSaveable { mutableStateOf("") }
     var searchActive by rememberSaveable { mutableStateOf(false) }
     var sortIndex by rememberSaveable { mutableIntStateOf(0) }
     var selectedUserId by rememberSaveable { mutableStateOf<Long?>(null) }
     var createUserVisible by rememberSaveable { mutableStateOf(false) }
     var editingUserId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val selectedUser = selectedUserId?.let { id -> users.firstOrNull { it.user.id == id } }
-    val editingUser = editingUserId?.let { id -> users.firstOrNull { it.user.id == id }?.user }
+    val selectedUser = selectedUserId?.let { id ->
+        loadedUsers.firstOrNull { it.user.id == id }
+    }
+    val editingUser = editingUserId?.let { id ->
+        loadedUsers.firstOrNull { it.user.id == id }?.user
+    }
 
     BackHandler(enabled = selectedUserId != null && editingUserId == null) {
         selectedUserId = null
     }
 
-    if (selectedUser != null) {
-        UserWorks(
+    when {
+        selectedUser != null -> UserWorks(
             user = selectedUser.user,
             repository = repository,
             onOpenWork = onOpenWork,
             onEditUser = { editingUserId = it.id },
             modifier = modifier,
         )
-    } else {
-        UserDirectory(
-            users = users,
+
+        users == null -> Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+
+        else -> UserDirectory(
+            users = loadedUsers,
             query = query,
             searchActive = searchActive,
             sort = UserSort.entries[sortIndex],
@@ -179,7 +195,7 @@ private fun UserCategory(
 @Composable
 fun UserDetailScreen(
     userId: Long,
-    onOpenWork: (String) -> Unit,
+    onOpenWork: (workId: String, userId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -448,7 +464,7 @@ private fun UserCard(
 private fun UserWorks(
     user: UserEntity,
     repository: WorkRepository,
-    onOpenWork: (String) -> Unit,
+    onOpenWork: (workId: String, userId: Long) -> Unit,
     onEditUser: (UserEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -511,7 +527,7 @@ private fun UserWorks(
                         work = work,
                         repository = repository,
                         badge = null,
-                        onClick = { onOpenWork(work.work.id) },
+                        onClick = { onOpenWork(work.work.id, user.id) },
                     )
                 }
             }

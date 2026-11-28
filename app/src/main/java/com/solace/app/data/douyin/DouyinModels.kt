@@ -27,6 +27,8 @@ data class DouyinMedia(
     val width: Int?,
     val height: Int?,
     val durationMs: Long?,
+    /** 视频或实况图的静态预览图；普通图片复用 [url]。 */
+    val previewUrl: String? = null,
 )
 
 /** 图文作品的背景音乐；视频作品的音轨已经包含在 MP4 里。 */

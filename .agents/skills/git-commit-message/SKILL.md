@@ -18,7 +18,7 @@ When no scope is specified:
 3. Otherwise use the current working-tree diff.
 4. Read the applicable `AGENTS.md` and recent commit history.
 
-Do not include unrelated dirty files merely because they exist. If the selected changes contain several independent purposes, say they should be split and generate messages for the coherent subsets instead of hiding them under one vague subject.
+Do not include unrelated dirty files merely because they exist. If the selected changes contain several purposes, identify their common user-visible outcome or primary purpose, then describe the combined change with one precise subject. Do not produce split recommendations or multiple candidate messages.
 
 ## Match repository conventions
 
@@ -62,7 +62,7 @@ Do not:
 
 ## Output
 
-By default, return only the recommended message in a `text` code block:
+Return exactly one recommended message in a `text` code block and nothing else:
 
 ```text
 feat(profile): unify drafts with published works
@@ -77,8 +77,6 @@ Read slides audio from video.play_addr when music.play_url is absent,
 so imported image posts retain their original soundtrack.
 ```
 
-If the user asks for alternatives, provide two or three materially different options rather than punctuation variants.
-
-If the change set is mixed or the intended commit scope is ambiguous, explain the split briefly and still provide the best message for each coherent subset.
+Do not provide alternatives, split suggestions, or explanations alongside the message. If the change set is mixed, use one subject that accurately represents the primary result or common outcome, adding a concise body when it materially improves accuracy.
 
 If the user explicitly asks to create the commit as well, use the generated message only after following repository rules and receiving any required authorization. Do not amend or push unless separately requested.

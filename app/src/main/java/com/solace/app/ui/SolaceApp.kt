@@ -5,8 +5,14 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +22,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +55,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.solace.app.R
 import com.solace.app.feature.category.CategoryScreen
 import com.solace.app.feature.category.UserDetailScreen
 import com.solace.app.feature.creation.CreationScreen
@@ -55,11 +68,12 @@ import com.solace.app.ui.navigation.SolaceDestination
 import com.solace.app.ui.screens.library.FolderScreen
 import com.solace.app.ui.screens.library.LibraryScreen
 import com.solace.app.ui.screens.player.PlayerScreen
+import kotlinx.coroutines.delay
 
 private const val ROUTE_FOLDER = "folder/{bucketId}"
 private const val ROUTE_PLAYER = "player/{bucketId}/{videoId}"
 private const val ROUTE_CREATION = "creation?draftId={draftId}"
-private const val ROUTE_WORK = "work/{workId}"
+private const val ROUTE_WORK = "work/{workId}?userId={userId}"
 private const val ROUTE_USER = "user/{userId}"
 private const val ROUTE_DOUYIN_IMPORT = "douyin-import"
 
@@ -81,7 +95,9 @@ fun SolaceApp() {
         currentRoute == ROUTE_FOLDER ||
         currentRoute == ROUTE_WORK ||
         currentRoute == ROUTE_USER
-    val isPlaybackRoute = currentRoute == ROUTE_WORK
+    val isDarkChrome = currentRoute == ROUTE_WORK ||
+        currentRoute == ROUTE_PLAYER ||
+        currentRoute == SolaceDestination.Gallery.route
 
     // 子页面（文件夹 / 作品）没有自己的 tab，高亮停留在进入它之前的那个 tab。
     var selectedTabRoute by rememberSaveable {
@@ -95,16 +111,39 @@ fun SolaceApp() {
     }
 
     // 播放作品时是深色画面，其余页面是亮色，系统栏图标跟着切换。
-    SystemBarAppearance(darkBackground = isPlaybackRoute || currentRoute == ROUTE_PLAYER)
+    SystemBarAppearance(darkBackground = isDarkChrome)
+
+    var galleryRefreshToken by rememberSaveable { mutableIntStateOf(0) }
+    var galleryRefreshCompletedToken by rememberSaveable { mutableIntStateOf(0) }
+    var galleryRefreshing by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(galleryRefreshToken, galleryRefreshCompletedToken) {
+        if (galleryRefreshing &&
+            galleryRefreshCompletedToken == galleryRefreshToken
+        ) {
+            delay(400)
+            galleryRefreshing = false
+        }
+    }
 
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
                 SolaceBottomBar(
                     selectedRoute = selectedTabRoute,
-                    dark = isPlaybackRoute,
+                    dark = isDarkChrome,
+                    refreshingRoute = if (galleryRefreshing) {
+                        SolaceDestination.Gallery.route
+                    } else {
+                        null
+                    },
                     onSelect = { destination ->
-                        if (currentRoute != destination.route) {
+                        if (currentRoute == destination.route) {
+                            if (destination == SolaceDestination.Gallery) {
+                                galleryRefreshing = true
+                                galleryRefreshToken++
+                            }
+                        } else {
                             // 在文件夹 / 作品等子页面点所属 tab 时直接回退，
                             // 否则 navigate + restoreState 会把刚离开的详情页又恢复出来。
                             val belongsToCurrentTab = !isTabRoute &&
@@ -147,13 +186,21 @@ fun SolaceApp() {
             }
             composable(SolaceDestination.Gallery.route) {
                 GalleryScreen(
-                    onOpenWork = { workId -> navController.navigate("work/$workId") },
-                    modifier = Modifier.padding(innerPadding),
+                    refreshToken = galleryRefreshToken,
+                    onOpenUser = { userId -> navController.navigate("user/$userId") },
+                    onRefreshComplete = {
+                        galleryRefreshCompletedToken = galleryRefreshToken
+                    },
+                    modifier = Modifier.padding(
+                        bottom = innerPadding.calculateBottomPadding(),
+                    ),
                 )
             }
             composable(SolaceDestination.Category.route) {
                 CategoryScreen(
-                    onOpenWork = { workId -> navController.navigate("work/$workId") },
+                    onOpenWork = { workId, userId ->
+                        navController.navigate("work/$workId?userId=$userId")
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -222,10 +269,19 @@ fun SolaceApp() {
             }
             composable(
                 route = ROUTE_WORK,
-                arguments = listOf(navArgument(ARG_WORK_ID) { type = NavType.StringType }),
+                arguments = listOf(
+                    navArgument(ARG_WORK_ID) { type = NavType.StringType },
+                    navArgument(ARG_USER_ID) {
+                        type = NavType.LongType
+                        defaultValue = 0L
+                    },
+                ),
             ) { entry ->
                 WorkDetailScreen(
                     workId = entry.arguments?.getString(ARG_WORK_ID).orEmpty(),
+                    userId = entry.arguments
+                        ?.getLong(ARG_USER_ID)
+                        ?.takeIf { it > 0L },
                     onBack = { navController.popBackStack() },
                     onOpenUser = { userId -> navController.navigate("user/$userId") },
                     // 顶部仍然全屏绘制，底部让出导航栏的高度。
@@ -238,7 +294,9 @@ fun SolaceApp() {
             ) { entry ->
                 UserDetailScreen(
                     userId = entry.arguments?.getLong(ARG_USER_ID) ?: 0L,
-                    onOpenWork = { workId -> navController.navigate("work/$workId") },
+                    onOpenWork = { workId, userId ->
+                        navController.navigate("work/$workId?userId=$userId")
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -254,6 +312,7 @@ fun SolaceApp() {
 private fun SolaceBottomBar(
     selectedRoute: String?,
     dark: Boolean,
+    refreshingRoute: String?,
     onSelect: (SolaceDestination) -> Unit,
 ) {
     val colors = if (dark) DarkBottomBarColors else LightBottomBarColors
@@ -283,16 +342,50 @@ private fun SolaceBottomBar(
                         .clickable { onSelect(destination) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = stringResource(destination.labelRes),
-                        color = if (selected) colors.selectedContent else colors.unselectedContent,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    )
+                    val contentColor = if (selected) {
+                        colors.selectedContent
+                    } else {
+                        colors.unselectedContent
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(destination.labelRes),
+                            color = contentColor,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                        if (refreshingRoute == destination.route) {
+                            RefreshingNavIcon(tint = contentColor)
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RefreshingNavIcon(tint: Color) {
+    val transition = rememberInfiniteTransition(label = "galleryRefresh")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700, easing = LinearEasing),
+        ),
+        label = "galleryRefreshRotation",
+    )
+    Icon(
+        imageVector = Icons.Outlined.Refresh,
+        contentDescription = stringResource(R.string.gallery_refreshing),
+        tint = tint,
+        modifier = Modifier
+            .size(16.dp)
+            .graphicsLayer { rotationZ = rotation },
+    )
 }
 
 /**

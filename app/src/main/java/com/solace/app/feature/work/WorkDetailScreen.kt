@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,12 +26,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -81,6 +88,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -108,25 +116,43 @@ private data class WorkFeed(
 @Composable
 fun WorkDetailScreen(
     workId: String,
+    userId: Long? = null,
+    shuffle: Boolean = false,
+    refreshKey: Int = 0,
+    showBackButton: Boolean = true,
+    showMoreActions: Boolean = true,
     onBack: () -> Unit,
     onOpenUser: (Long) -> Unit,
+    onReady: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val repository = remember(context) { WorkRepository(context) }
     var feed by remember(workId) { mutableStateOf<WorkFeed?>(null) }
     var resolved by remember(workId) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val readyReporter = rememberUpdatedState(onReady)
 
-    LaunchedEffect(workId) {
-        repository.observePublished().collect { published ->
-            val index = published.indexOfFirst { it.work.id == workId }
-            feed = if (index >= 0) {
-                WorkFeed(published, index)
+    LaunchedEffect(workId, userId, shuffle, refreshKey) {
+        val availableWorks = userId?.let(repository::observeUserWorks)
+            ?: repository.observePublished()
+        availableWorks.collect { works ->
+            val orderedWorks = if (shuffle) {
+                works.shuffled(Random(refreshKey))
             } else {
-                // 兜底：作品不在已发布列表里（例如从其他入口跳转）时只展示它自己。
-                repository.get(workId)?.let { WorkFeed(listOf(it), 0) }
+                works
+            }
+            val index = orderedWorks.indexOfFirst { it.work.id == workId }
+            feed = if (index >= 0) {
+                WorkFeed(orderedWorks, index)
+            } else {
+                // 兜底：作品不在当前信息流里时只展示它自己，但仍遵守用户过滤。
+                repository.get(workId)
+                    ?.takeIf { userId == null || it.work.userId == userId }
+                    ?.let { WorkFeed(listOf(it), 0) }
             }
             resolved = true
+            readyReporter.value?.invoke()
         }
     }
 
@@ -142,6 +168,14 @@ fun WorkDetailScreen(
                 repository = repository,
                 onBack = onBack,
                 onOpenUser = onOpenUser,
+                showBackButton = showBackButton,
+                showMoreActions = showMoreActions,
+                onDeleteWork = { deletedWorkId ->
+                    scope.launch {
+                        repository.delete(deletedWorkId)
+                        onBack()
+                    }
+                },
             )
 
             !resolved -> CircularProgressIndicator(
@@ -160,6 +194,9 @@ private fun WorkFeedPager(
     repository: WorkRepository,
     onBack: () -> Unit,
     onOpenUser: (Long) -> Unit,
+    showBackButton: Boolean,
+    showMoreActions: Boolean,
+    onDeleteWork: (String) -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = feed.initialIndex) { feed.works.size }
 
@@ -175,6 +212,9 @@ private fun WorkFeedPager(
             active = pagerState.currentPage == page,
             onBack = onBack,
             onOpenUser = onOpenUser,
+            showBackButton = showBackButton,
+            showMoreActions = showMoreActions,
+            onDeleteWork = onDeleteWork,
         )
     }
 }
@@ -186,6 +226,9 @@ private fun WorkFeedPage(
     active: Boolean,
     onBack: () -> Unit,
     onOpenUser: (Long) -> Unit,
+    showBackButton: Boolean,
+    showMoreActions: Boolean,
+    onDeleteWork: (String) -> Unit,
 ) {
     val visualMedia = remember(work) { work.visualMedia }
     val files = remember(work) {
@@ -207,6 +250,7 @@ private fun WorkFeedPage(
 
     // 每个作品独立记录播放状态，切回来时从播放开始。
     var playing by remember(work.work.id) { mutableStateOf(true) }
+    var showDeleteDialog by remember(work.work.id) { mutableStateOf(false) }
     var scrubbing by remember(work.work.id) { mutableStateOf(false) }
     var dragFraction by remember(work.work.id) { mutableFloatStateOf(0f) }
     var playFraction by remember(work.work.id) { mutableFloatStateOf(0f) }
@@ -348,6 +392,7 @@ private fun WorkFeedPage(
                                     0f
                                 },
                                 playing = playing && !scrubbing,
+                                muted = audioFile != null,
                                 handle = handle,
                                 onProgress = { fraction -> playFraction = fraction },
                                 onCompleted = {
@@ -393,7 +438,20 @@ private fun WorkFeedPage(
             )
         }
 
-        TopBar(onBack = onBack)
+        if (showBackButton || showMoreActions) {
+            TopBar(
+                onBack = onBack,
+                showBackButton = showBackButton,
+                onDelete = if (showMoreActions) {
+                    {
+                        playing = false
+                        showDeleteDialog = true
+                    }
+                } else {
+                    null
+                },
+            )
+        }
 
         val user = work.user
         if (user != null) {
@@ -517,6 +575,39 @@ private fun WorkFeedPage(
             )
         }
     }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(text = stringResource(R.string.work_delete_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.work_delete_message,
+                        work.work.caption.ifBlank { stringResource(R.string.work_untitled) },
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteWork(work.work.id)
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(text = stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 /** 持有当前正在播放的播放器，供进度条拖动时 seek 用。 */
@@ -555,6 +646,7 @@ private fun VideoStage(
     durationMs: Long,
     initialFraction: Float,
     playing: Boolean,
+    muted: Boolean,
     handle: PlayerHandle,
     onProgress: (fraction: Float) -> Unit,
     onCompleted: () -> Unit,
@@ -589,6 +681,10 @@ private fun VideoStage(
 
     LaunchedEffect(player, playing) {
         if (playing) player.play() else player.pause()
+    }
+
+    LaunchedEffect(player, muted) {
+        player.volume = if (muted) 0f else 1f
     }
 
     DisposableEffect(player) {
@@ -806,7 +902,13 @@ private fun WorkProgressBar(
 }
 
 @Composable
-private fun TopBar(onBack: () -> Unit) {
+private fun TopBar(
+    onBack: () -> Unit,
+    showBackButton: Boolean = true,
+    onDelete: (() -> Unit)? = null,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -816,15 +918,53 @@ private fun TopBar(onBack: () -> Unit) {
                 ),
             )
             .statusBarsPadding()
-            .padding(start = 4.dp, top = 4.dp, bottom = 24.dp),
+            .padding(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.action_back),
-                tint = Color.White,
-            )
+        if (showBackButton) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
+                    tint = Color.White,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (onDelete != null) {
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.work_more_actions),
+                        tint = Color.White,
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = stringResource(R.string.action_delete),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        },
+                    )
+                }
+            }
         }
     }
 }

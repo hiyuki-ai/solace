@@ -36,9 +36,14 @@
     <string name="profile_start_creation">开始创作</string>
     <string name="profile_copy_work">复制作品</string>
     <string name="profile_works">我的作品</string>
+    <string name="profile_open_creation_actions">打开创作操作</string>
     <string name="profile_empty_works">还没有作品</string>
-    <string name="profile_delete_title">删除作品</string>
-    <string name="profile_delete_message">确定删除「%1$s」吗？本地文件会一并删除，且不可恢复。</string>
+    <string name="profile_batch_delete">批量删除作品</string>
+    <string name="profile_selected_count">已选择 %1$d 项</string>
+    <string name="profile_select_all">全选</string>
+    <string name="profile_clear_selection">取消全选</string>
+    <string name="profile_batch_delete_title">批量删除作品</string>
+    <string name="profile_batch_delete_message">确定删除选中的 %1$d 个作品吗？本地文件会一并删除，且不可恢复。</string>
 
     <string name="action_cancel">取消</string>
     <string name="action_delete">删除</string>
@@ -62,10 +67,14 @@
 
     <string name="work_user_handle">@%1$s</string>
     <string name="work_open_user">查看用户详情</string>
+    <string name="work_more_actions">更多操作</string>
+    <string name="work_delete_title">删除作品</string>
+    <string name="work_delete_message">确定删除「%1$s」吗？本地文件会一并删除，且不可恢复。</string>
 
     <string name="work_draft_badge">草稿</string>
     <string name="work_untitled">无描述</string>
     <string name="gallery_empty">还没有发布的作品</string>
+    <string name="gallery_refreshing">正在刷新画廊</string>
 
     <string name="category_user_tab">用户</string>
     <string name="category_search_hint">输入昵称、ID 或账号标识</string>
